@@ -98,7 +98,7 @@ class TaskInputDialog(QDialog):
         if ok and subtask_name.strip():
             self.subtasks_list.addItem(subtask_name.strip())
 
-    def get_task(self, assigned_kanban):
+    def get_task(self, kanban_bucket):
         if self.exec() == QDialog.Accepted:
             subtasks = [self.subtasks_list.item(i).text() for i in range(self.subtasks_list.count())]
             return Task(
@@ -107,7 +107,7 @@ class TaskInputDialog(QDialog):
                 date_to_perform=self.date_edit.date().toString("dd.MM.yyyy"),
                 repeat=RepeatEnum(self.repeat_combo.currentText()),
                 assigned_to_project=self.project_edit.text().strip(),
-                assigned_kanban=assigned_kanban
+                assigned_kanban=kanban_bucket,
                 tag=self.tag_edit.text().strip(),
                 subtasks=subtasks
             )
