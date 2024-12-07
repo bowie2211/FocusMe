@@ -5,28 +5,8 @@ from PySide6.QtWidgets import (
     QDateEdit, QComboBox, QPushButton, QListWidget, QMessageBox, QInputDialog
 )
 from PySide6.QtCore import Qt, QDate
+from model.focusme_model import Task, RepeatEnum
 
-
-class RepeatEnum(Enum):
-    NEVER = "Never"
-    DAY = "Day"
-    WEEK = "Week"
-    MONTH = "Month"
-
-
-class Task:
-    def __init__(self, taskname="", estimated_pomos=0, date_to_perform=None, repeat=RepeatEnum.NEVER, assigned_to_project="", assigned_kanban = "Backlog", tag="", subtasks=None):
-        self.taskname = taskname
-        self.estimated_pomos = estimated_pomos
-        self.date_to_perform = date_to_perform or QDate.currentDate().toString("dd.MM.yyyy")
-        self.repeat = repeat
-        self.assigned_to_project = assigned_to_project
-        self.assigned_kanban = assigned_kanban
-        self.tag = tag
-        self.subtasks = subtasks or []
-
-    def __repr__(self):
-        return f"<Task(taskname={self.taskname}, estimated_pomos={self.estimated_pomos}, date_to_perform={self.date_to_perform}, repeat={self.repeat}, assigned_to_project={self.assigned_to_project}, tag={self.tag}, subtasks={self.subtasks})>"
 
 
 class TaskInputDialog(QDialog):

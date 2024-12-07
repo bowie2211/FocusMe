@@ -6,8 +6,14 @@ class RepeatEnum(Enum):
     WEEK = "Week"
     MONTH = "Month"
 
+class KanbanBoardColumns(Enum):
+    BACKLOG = "Backlog"
+    IN_PROGRESS = "In Progress"
+    DONE = "DONE"
+
+
 class Task:
-    def __init__(self, taskname="",description="", estimated_pomos=0, date_to_perform=None, repeat=RepeatEnum.NEVER, assigned_to_project="", assigned_kanban = "Backlog", tag="", subtasks=None):
+    def __init__(self, taskname="",description="", estimated_pomos=0, date_to_perform=None, repeat=RepeatEnum.NEVER.value, assigned_to_project="", assigned_kanban = KanbanBoardColumns.BACKLOG.value, tag="", subtasks=None):
         self.taskname = taskname
         self.description = description
         self.estimated_pomodoros = estimated_pomos
@@ -27,16 +33,26 @@ class Task:
 
 class Project:
     def __init__(self, name=""):
-        self.tasks = []
+        self.tasks = {KanbanBoardColumns.BACKLOG.value: [], KanbanBoardColumns.IN_PROGRESS.value: [], KanbanBoardColumns.DONE.value: []}
+
         self.name = name
     
     def add_task(self, task):
-        self.tasks.append(task)
-
+        """
+        Adds a task according to its attribute "assigned_kanban_swimlane" 
+        to the tasks dictionary
+        """
+        self.tasks[task.assigned_kanban_swimlane].append(task)
+        
 class FocusMeData:
     def __init__(self):
         self.projects = []
         
-    def addProject(self,project):
+    def add_project(self,project):
         self.projects.append(project) 
 
+    def get_project(self, project_name):
+        for project in self.projects:
+            if (project_name == project.name):
+                return project
+        return None

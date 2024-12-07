@@ -1,0 +1,154 @@
+Mein Focus App hat in main.py eine Datenmodell definiert in dem alle Informationen die eingeben werden festgehlaten werden.
+In der Applikation git es eine Klasse MainWindow die Klasse MainWindow hält eine Objekt der Klasse Kanban. 
+Der Klasse MainWindow wird das Datenmodell übergeben. Alle Userinterkation die direkt in dieser Klasse stattfinden können in das Datenmodell schreiben. Wird der Add Task Button gedrückt, wird in den Kontext des Objekts Kanban gewechselt. Dort ist das Object Datenmodell nicht bekannt.
+Wie erreicht man es, dass man die Informationen die in add_taks des Objekts Kanban in das Datenmodell geschrieben werden können?
+
+Antwort:
+Das Ziel ist, dass die Klasse `Kanban` Zugriff auf das Datenmodell hat, um dort Änderungen vorzunehmen, während die Hauptklasse `MainWindow` das zentrale Steuerungselement bleibt. Es gibt mehrere Ansätze, wie Sie dies umsetzen können:
+
+---
+
+### **Ansatz 1: Datenmodell an `Kanban` übergeben**
+Eine einfache Lösung besteht darin, das Datenmodell beim Erstellen der `Kanban`-Instanz zu übergeben. Dadurch hat `Kanban` direkten Zugriff auf das Modell:
+
+```python
+class MainWindow:
+    def __init__(self, data_model):
+        self.data_model = data_model
+        self.kanban = Kanban(data_model)  # Datenmodell wird übergeben
+    
+    def add_task_button_clicked(self):
+        self.kanban.add_task("Neue Aufgabe")
+
+
+class Kanban:
+    def __init__(self, data_model):
+        self.data_model = data_model  # Referenz auf das Datenmodell
+    
+    def add_task(self, task):
+        # Ändert das Datenmodell
+        self.data_model.add_task(task)
+
+
+class DataModel:
+    def __init__(self):
+        self.tasks = []
+    
+    def add_task(self, task):
+        self.tasks.append(task)
+        print(f"Task hinzugefügt: {task}")
+
+
+# Beispiel
+data_model = DataModel()
+main_window = MainWindow(data_model)
+main_window.add_task_button_clicked()
+```
+
+### Vorteile:
+- `Kanban` hat direkten Zugriff auf das Modell.
+- Das Datenmodell bleibt zentral und wird gemeinsam genutzt.
+
+---
+
+### **Ansatz 2: Verwendung von Callbacks**
+Ein flexiblerer Ansatz besteht darin, eine Callback-Funktion in `Kanban` zu registrieren, die alle Änderungen am Datenmodell vornimmt. Das hält `Kanban` von der direkten Kenntnis des Datenmodells unabhängig.
+
+```python
+class MainWindow:
+    def __init__(self, data_model):
+        self.data_model = data_model
+        self.kanban = Kanban(self.update_data_model)
+    
+    def update_data_model(self, task):
+        self.data_model.add_task(task)
+    
+    def add_task_button_clicked(self):
+        self.kanban.add_task("Neue Aufgabe")
+
+
+class Kanban:
+    def __init__(self, add_task_callback):
+        self.add_task_callback = add_task_callback
+    
+    def add_task(self, task):
+        # Callback ausführen, um das Modell zu aktualisieren
+        self.add_task_callback(task)
+
+
+class DataModel:
+    def __init__(self):
+        self.tasks = []
+    
+    def add_task(self, task):
+        self.tasks.append(task)
+        print(f"Task hinzugefügt: {task}")
+
+
+# Beispiel
+data_model = DataModel()
+main_window = MainWindow(data_model)
+main_window.add_task_button_clicked()
+```
+
+### Vorteile:
+- `Kanban` bleibt unabhängig vom Datenmodell.
+- Flexible Erweiterung: Mehrere Klassen könnten denselben Callback verwenden.
+
+---
+
+### **Ansatz 3: Singleton für das Datenmodell**
+Wenn das Datenmodell in der gesamten Anwendung einzigartig ist, könnte man es als Singleton implementieren. Das ermöglicht einfachen globalen Zugriff, ist aber weniger modular.
+
+```python
+class DataModel:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls, *args, **kwargs)
+            cls._instance.tasks = []
+        return cls._instance
+
+    def add_task(self, task):
+        self.tasks.append(task)
+        print(f"Task hinzugefügt: {task}")
+
+
+class MainWindow:
+    def __init__(self):
+        self.data_model = DataModel()
+        self.kanban = Kanban()
+    
+    def add_task_button_clicked(self):
+        self.kanban.add_task("Neue Aufgabe")
+
+
+class Kanban:
+    def add_task(self, task):
+        # Greift direkt auf das Singleton zu
+        data_model = DataModel()
+        data_model.add_task(task)
+
+
+# Beispiel
+main_window = MainWindow()
+main_window.add_task_button_clicked()
+```
+
+### Vorteile:
+- Einfacher Zugriff auf das Datenmodell von überall.
+- Kein explizites Weitergeben des Modells erforderlich.
+
+### Nachteile:
+- Weniger testbar und modular.
+- Globaler Zustand kann zu unübersichtlichem Code führen.
+
+---
+
+### **Empfohlener Ansatz**
+**Ansatz 1 oder Ansatz 2** ist vorzuziehen:
+- Wenn `Kanban` eng mit dem Datenmodell verknüpft ist, ist **Ansatz 1** sinnvoll.
+- Wenn `Kanban` unabhängig vom Modell bleiben soll, ist **Ansatz 2** flexibler.
+
+Beide Varianten halten den Code übersichtlich und testbar, während sie die Abhängigkeiten explizit machen.

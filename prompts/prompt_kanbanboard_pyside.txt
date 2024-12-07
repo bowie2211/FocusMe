@@ -1,0 +1,244 @@
+Ich möchte mit pySide ein interaktives Kanbanboard aufbauen.
+Es gibt 3 Board Element: backlog, in progress und done.
+In jedem Board Element soll es mölich sein per Mausklick eine Taks hinzuzufügen.
+Die Hinzugefügte Taks soll wiederum als interaktives Element angezeigt werden.
+Es muss möglich sein, eine Task von einem Boardspalte in eine andere per drag and drop zu verschieben.
+Dabei muss die Task aus der Quellspalte gelöscht und in die neue Spalte eingefügt werden.
+Wenn man auf eine Tasks klickt muss ein Eigenschaftenfenster geööfnet werden, in dem folgende eigenschaften der Task angezeigt werden:
+Taskname  Type: String
+Estimated_Pomos Type:intger
+Date_to_Perform Type: dd.mm.yyyy
+Repeat Type: Enum never, day, week, month
+Assinged_to_project Type: String
+Tag Type: String
+Subtaks Type:String
+Dieses Board soll in die bereits erstellte ui_main_window ui intergriert werden
+
+Hier ist ein Programmgerüst für die Anwendung **FocusMe**, entwickelt mit **Python 3.13.0** und **PySide6 6.8.0.2**. Dieses Grundgerüst implementiert eine grundlegende GUI mit den geforderten Funktionen:
+
+---
+
+### **Projektstruktur**
+```
+FocusMe/
+├── main.py             # Hauptprogramm
+├── database.py         # Datenbanklogik
+├── ui_main_window.py   # GUI für das Hauptfenster
+├── resources/          # Ressourcen (z. B. Icons, Stylesheets)
+└── requirements.txt    # Abhängigkeiten
+```
+
+---
+
+### **1. Hauptdatei: `main.py`**
+
+```python
+import sys
+from PySide6.QtWidgets import QApplication
+from ui_main_window import MainWindow
+from database import init_db
+
+def main():
+    # Datenbank initialisieren
+    init_db()
+
+    # Anwendung starten
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+### **2. Datenbanklogik: `database.py`**
+
+```python
+import sqlite3
+
+DB_FILE = "focusme.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    # Tabelle für Projekte
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT
+    );
+    """)
+
+    # Tabelle für Tasks
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        project_id INTEGER,
+        status TEXT,
+        FOREIGN KEY (project_id) REFERENCES Projects (id)
+    );
+    """)
+
+    conn.commit()
+    conn.close()
+
+def get_projects():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM Projects")
+    projects = cursor.fetchall()
+    conn.close()
+    return projects
+
+def add_project(name, description):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO Projects (name, description) VALUES (?, ?)", (name, description))
+    conn.commit()
+    conn.close()
+
+def get_tasks_by_status(project_id, status):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM Tasks WHERE project_id = ? AND status = ?", (project_id, status))
+    tasks = cursor.fetchall()
+    conn.close()
+    return tasks
+
+def add_task(name, project_id, status):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO Tasks (name, project_id, status) VALUES (?, ?, ?)", (name, project_id, status))
+    conn.commit()
+    conn.close()
+```
+
+---
+
+### **3. GUI für das Hauptfenster: `ui_main_window.py`**
+
+```python
+from PySide6.QtWidgets import (
+    QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QListWidget,
+    QPushButton, QInputDialog, QMessageBox
+)
+from database import get_projects, add_project, get_tasks_by_status, add_task
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("FocusMe")
+        self.setGeometry(100, 100, 800, 600)
+
+        self.init_ui()
+
+    def init_ui(self):
+        # Hauptlayout
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        layout = QVBoxLayout()
+
+        # Projektliste
+        self.project_list = QListWidget()
+        self.project_list.itemClicked.connect(self.display_tasks)
+        layout.addWidget(self.project_list)
+
+        # Button: Projekt hinzufügen
+        add_project_btn = QPushButton("Projekt hinzufügen")
+        add_project_btn.clicked.connect(self.add_project)
+        layout.addWidget(add_project_btn)
+
+        # Kanban-Layouts
+        self.kanban_layout = QHBoxLayout()
+        self.backlog_list = QListWidget()
+        self.next_list = QListWidget()
+        self.in_progress_list = QListWidget()
+        self.done_list = QListWidget()
+
+        # Kanban-Spalten
+        self.kanban_layout.addWidget(self.create_kanban_column("Backlog", self.backlog_list, "backlog"))
+        self.kanban_layout.addWidget(self.create_kanban_column("Next", self.next_list, "next"))
+        self.kanban_layout.addWidget(self.create_kanban_column("In Progress", self.in_progress_list, "in_progress"))
+        self.kanban_layout.addWidget(self.create_kanban_column("Done", self.done_list, "done"))
+
+        layout.addLayout(self.kanban_layout)
+        main_widget.setLayout(layout)
+
+        # Projekte laden
+        self.load_projects()
+
+    def create_kanban_column(self, title, list_widget, status):
+        column_layout = QVBoxLayout()
+        column_layout.addWidget(list_widget)
+        add_task_btn = QPushButton(f"Task hinzufügen ({title})")
+        add_task_btn.clicked.connect(lambda: self.add_task(list_widget, status))
+        column_layout.addWidget(add_task_btn)
+        column = QWidget()
+        column.setLayout(column_layout)
+        return column
+
+    def load_projects(self):
+        self.project_list.clear()
+        projects = get_projects()
+        for project in projects:
+            self.project_list.addItem(f"{project[0]} - {project[1]}")
+
+    def display_tasks(self, item):
+        project_id = int(item.text().split(" - ")[0])
+        self.populate_task_list(self.backlog_list, project_id, "backlog")
+        self.populate_task_list(self.next_list, project_id, "next")
+        self.populate_task_list(self.in_progress_list, project_id, "in_progress")
+        self.populate_task_list(self.done_list, project_id, "done")
+
+    def populate_task_list(self, list_widget, project_id, status):
+        list_widget.clear()
+        tasks = get_tasks_by_status(project_id, status)
+        for task in tasks:
+            list_widget.addItem(task[1])
+
+    def add_project(self):
+        name, ok = QInputDialog.getText(self, "Projekt hinzufügen", "Projektname:")
+        if ok and name:
+            description, ok_desc = QInputDialog.getText(self, "Projekt hinzufügen", "Beschreibung:")
+            if ok_desc:
+                add_project(name, description)
+                self.load_projects()
+                QMessageBox.information(self, "Erfolg", "Projekt hinzugefügt!")
+
+    def add_task(self, list_widget, status):
+        current_project = self.project_list.currentItem()
+        if not current_project:
+            QMessageBox.warning(self, "Fehler", "Kein Projekt ausgewählt!")
+            return
+
+        project_id = int(current_project.text().split(" - ")[0])
+        task_name, ok = QInputDialog.getText(self, "Task hinzufügen", "Taskname:")
+        if ok and task_name:
+            add_task(task_name, project_id, status)
+            self.populate_task_list(list_widget, project_id, status)
+            QMessageBox.information(self, "Erfolg", "Task hinzugefügt!")
+```
+
+---
+
+### **4. Abhängigkeiten: `requirements.txt`**
+
+```plaintext
+PySide6==6.8.0.2
+```
+
+---
+
+### **Funktionen im Überblick**
+1. **Projekt hinzufügen:** Projekte mit Namen und Beschreibung können erstellt werden.
+2. **Projektliste:** Zeigt alle Projekte aus der Datenbank.
+3. **Kanban-Boards:** Aufgaben werden in den Spalten *Backlog*, *Next*, *In Progress* und *Done* angezeigt.
+4. **Aufgaben hinzufügen:** Aufgaben können für jede Spalte hinzugefügt werden.
+
+Dieses Grundgerüst bietet eine solide Basis für die Erweiterung der Anwendung um zusätzliche Funktionen wie Drag-and-Drop, Bearbeiten von Aufgaben oder Projektstatistiken.

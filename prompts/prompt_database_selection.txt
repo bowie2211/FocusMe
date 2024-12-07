@@ -1,0 +1,113 @@
+Prompt1:
+Aufgabe: Entwicklung einer Applikation für Windows 11
+Entwicklungsumgebung: 
+IDE: Visual Code, 
+Programmiersprache: Python 
+GUI-Framework: Qt
+Applikationsname: FocusMe
+
+
+Ich möchte eine Applikation schreiben mit der Projekte und Aufgaben verwaltet werden können.
+Einem Projekt sollen Aufgaben zugewiesen werden können.
+Eine Aufgabe (Task) besitzt folgende Datenfelder:
+Taskname  Type: String
+Estimated_Pomos Type:intger
+Date_to_Perform Type: dd.mm.yyyy
+Repeat Type: Enum never, day, week, month
+Assinged_to_project Type: String
+Tag Type: String
+Subtaks Type:String
+
+
+Ein Projekt hat folgende Datenfelder
+Name Type: String
+Description: Typs String
+Kanban_backlog Type: List of Tasks
+Kanban_next Type: List of Tasks
+Kanban_in_progress Type: List of Tasks
+Kanban_done Type: List of Tasks
+
+Die Informationen sollen in einer Datenbank persistiert werden.
+Welche Datenbank ist für eine solche Anwendung geeignet?
+
+
+Antwort:
+Für eine solche Anwendung, bei der Informationen zu Projekten und Aufgaben mit ihren jeweiligen Attributen in einer Datenbank gespeichert werden sollen, eignet sich am besten eine relationale oder dokumentenbasierte Datenbank. Die Wahl hängt davon ab, wie flexibel und skalierbar die Anwendung sein soll. Hier ist eine Übersicht der besten Optionen:
+
+---
+
+### **1. Relationale Datenbank: SQLite**
+- **Warum?**
+  - **Einfachheit:** SQLite ist leicht zu konfigurieren und wird häufig für Desktop-Anwendungen genutzt.
+  - **Integriert:** Python bietet mit dem `sqlite3`-Modul eine integrierte Unterstützung.
+  - **Kein Server:** Da es serverlos ist, benötigt SQLite keine zusätzliche Infrastruktur.
+  - **Konsistenz:** Perfekt für strukturierte Daten mit definierten Beziehungen, wie Projekte und Aufgaben.
+- **Einsatz in deinem Fall:** 
+  - Projekte und Aufgaben können über Tabellen mit Relationen modelliert werden.
+  - Aufgaben haben Beziehungen zu Projekten, die durch einen Foreign Key dargestellt werden können.
+
+---
+
+### **2. Dokumentenbasierte Datenbank: MongoDB**
+- **Warum?**
+  - **Flexibilität:** MongoDB speichert Daten in JSON-ähnlichen Dokumenten und erlaubt es, unterschiedliche Strukturen für Projekte und Aufgaben zu verwenden.
+  - **Keine Schema-Bindung:** Ideal, wenn die Struktur der Datenfelder später erweitert werden könnte.
+  - **Einfach zu bedienen:** Python bietet mit `pymongo` eine leistungsfähige Bibliothek für MongoDB.
+- **Einsatz in deinem Fall:**
+  - Ein Projekt könnte ein Dokument sein, das seine Aufgaben als eingebettete Dokumente speichert.
+  - Ermöglicht einfaches Speichern und Abrufen der Kanban-Listen.
+
+---
+
+### **3. Andere Optionen:**
+#### **PostgreSQL:**
+- **Warum?** Leistungsstarke relationale Datenbank mit erweiterten Funktionen wie JSON-Support.
+- **Wann nutzen?** Wenn Skalierbarkeit und erweiterte Abfragen wichtig werden.
+
+#### **MySQL:**
+- **Warum?** Eine weitere beliebte relationale Datenbank mit Python-Unterstützung (`mysql-connector`).
+- **Wann nutzen?** Ähnlich wie PostgreSQL, jedoch etwas weniger flexibel bei JSON.
+
+---
+
+### **Empfehlung: SQLite**
+SQLite ist für die meisten Desktop-Anwendungen die beste Wahl, da:
+1. **Einfachheit:** Keine zusätzliche Installation oder Server erforderlich.
+2. **Klein und effizient:** Ausreichend leistungsstark für lokale Daten.
+3. **Relationen unterstützen:** Ideal für die modellierten Beziehungen (z. B. Aufgaben <-> Projekte).
+
+Falls die Applikation jedoch cloud-basiert oder sehr skalierbar werden soll, wäre **MongoDB** eine flexible Alternative.
+
+---
+
+**Beispiel für SQLite-Datenbank-Tabellen:**
+
+**Projekte:**
+```sql
+CREATE TABLE Projects (
+    ProjectID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name TEXT NOT NULL,
+    Description TEXT
+);
+```
+
+**Aufgaben:**
+```sql
+CREATE TABLE Tasks (
+    TaskID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Taskname TEXT NOT NULL,
+    Estimated_Pomos INTEGER,
+    Date_to_Perform TEXT,
+    Repeat TEXT,
+    Assigned_to_project INTEGER,
+    Tag TEXT,
+    Subtasks TEXT,
+    FOREIGN KEY (Assigned_to_project) REFERENCES Projects(ProjectID)
+);
+```
+
+---
+
+Lass mich wissen, wenn du Hilfe beim Einrichten oder Implementieren der Datenbank benötigst! 😊
+
+

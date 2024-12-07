@@ -1,0 +1,261 @@
+Prompt1:
+Aufgabe: Entwicklung einer Applikation für Windows 11
+Entwicklungsumgebung: 
+IDE: Visual Code, 
+Programmiersprache: C++
+GUI-Framework: Qt
+Applikationsname: FocusMe
+
+
+Ich möchte eine Applikation schreiben mit der Projekte und Aufgaben verwaltet werden können.
+Einem Projekt sollen Aufgaben zugewiesen werden können.
+
+Stelle ein erstes Programmgerüst für eine solche Applikation zur Verfügung.
+Folgende GUI Elemente sollen auf der Oberfläche verfügbarsein:
+1) Projekt hinzufügen
+2) eine Liste der Projekt in der Datenbank
+3) die Projekte sollen in der Liste auswählbar sein
+4) wenn man ein Projekt ausgewählt hat soll eine folgende Informationen darsgestellt werden
+   - Liste der Taks in Datenfeld Kanban_backlog
+   -Liste der Tashs im Datenfeld Kanban_next
+   - Liste der Tasks im Datenfeld Kanban_in_progress
+   - Liste der Tasks im Datenfeld Kanban_done
+4) In den Listen solle es die Möglichkeit geben eine neuen Task hinzuzufügen 
+
+Antwort:
+
+Hier ist ein erstes Gerüst für die Anwendung **FocusMe**, die Projekte und Aufgaben verwaltet. Es nutzt **PyQt5** als GUI-Framework und eine SQLite-Datenbank für die Datenhaltung. Dieses Grundgerüst implementiert die geforderten GUI-Elemente:
+
+### Verzeichnisstruktur
+```
+FocusMe/
+├── app.py
+├── db_manager.py
+├── gui/
+│   ├── main_window.py
+│   └── project_view.py
+└── models/
+    ├── project.py
+    └── task.py
+```
+
+---
+
+### **1. `app.py` (Main Application)**
+```python
+import sys
+from PyQt5.QtWidgets import QApplication
+from gui.main_window import MainWindow
+
+def main():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+### **2. `db_manager.py` (Database Manager)**
+```python
+import sqlite3
+
+DB_NAME = "focusme.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    # Projekte-Tabelle
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT
+        )
+    ''')
+
+    # Tasks-Tabelle
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            taskname TEXT NOT NULL,
+            estimated_pomos INTEGER,
+            date_to_perform TEXT,
+            repeat TEXT,
+            assigned_to_project INTEGER,
+            tag TEXT,
+            subtasks TEXT,
+            status TEXT,
+            FOREIGN KEY (assigned_to_project) REFERENCES Projects (id)
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def get_connection():
+    return sqlite3.connect(DB_NAME)
+```
+
+---
+
+### **3. `gui/main_window.py` (Main Window with Project List and Details)**
+```python
+from PyQt5.QtWidgets import (
+    QMainWindow, QVBoxLayout, QWidget, QPushButton, QListWidget, QLabel, QHBoxLayout, QInputDialog
+)
+from db_manager import init_db, get_connection
+from gui.project_view import ProjectView
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("FocusMe - Projektverwaltung")
+        self.resize(800, 600)
+        
+        init_db()
+        
+        # Hauptlayout
+        layout = QVBoxLayout()
+        self.project_list = QListWidget()
+        self.add_project_btn = QPushButton("Projekt hinzufügen")
+        self.project_details = ProjectView()
+
+        # Layout Anordnung
+        layout.addWidget(QLabel("Projekte:"))
+        layout.addWidget(self.project_list)
+        layout.addWidget(self.add_project_btn)
+        layout.addWidget(self.project_details)
+
+        # Event Handler
+        self.add_project_btn.clicked.connect(self.add_project)
+        self.project_list.itemClicked.connect(self.load_project_details)
+
+        # Daten laden
+        self.load_projects()
+
+        # Hauptwidget
+        container = QWidget()
+        container.setLayout(layout)
+        self.setCentralWidget(container)
+
+    def load_projects(self):
+        self.project_list.clear()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name FROM Projects")
+        for project_id, name in cursor.fetchall():
+            self.project_list.addItem(f"{project_id}: {name}")
+        conn.close()
+
+    def add_project(self):
+        name, ok = QInputDialog.getText(self, "Neues Projekt", "Projektnamen eingeben:")
+        if ok and name:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO Projects (name, description) VALUES (?, ?)", (name, ""))
+            conn.commit()
+            conn.close()
+            self.load_projects()
+
+    def load_project_details(self, item):
+        project_id = int(item.text().split(":")[0])
+        self.project_details.load_project(project_id)
+```
+
+---
+
+### **4. `gui/project_view.py` (Project Details with Kanban Boards)**
+```python
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QListWidget, QPushButton, QWidget, QInputDialog
+from db_manager import get_connection
+
+class ProjectView(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.layout = QVBoxLayout()
+        
+        # Kanban-Listen
+        self.backlog_list = QListWidget()
+        self.next_list = QListWidget()
+        self.in_progress_list = QListWidget()
+        self.done_list = QListWidget()
+        
+        self.add_task_btn = QPushButton("Neuen Task hinzufügen")
+
+        # Layout
+        self.layout.addWidget(QLabel("Backlog:"))
+        self.layout.addWidget(self.backlog_list)
+        self.layout.addWidget(QLabel("Next:"))
+        self.layout.addWidget(self.next_list)
+        self.layout.addWidget(QLabel("In Progress:"))
+        self.layout.addWidget(self.in_progress_list)
+        self.layout.addWidget(QLabel("Done:"))
+        self.layout.addWidget(self.done_list)
+        self.layout.addWidget(self.add_task_btn)
+
+        self.add_task_btn.clicked.connect(self.add_task)
+
+        self.setLayout(self.layout)
+        self.project_id = None
+
+    def load_project(self, project_id):
+        self.project_id = project_id
+        self.load_tasks()
+
+    def load_tasks(self):
+        self.backlog_list.clear()
+        self.next_list.clear()
+        self.in_progress_list.clear()
+        self.done_list.clear()
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT taskname, status FROM Tasks WHERE assigned_to_project = ?", (self.project_id,))
+        for taskname, status in cursor.fetchall():
+            if status == "backlog":
+                self.backlog_list.addItem(taskname)
+            elif status == "next":
+                self.next_list.addItem(taskname)
+            elif status == "in_progress":
+                self.in_progress_list.addItem(taskname)
+            elif status == "done":
+                self.done_list.addItem(taskname)
+        conn.close()
+
+    def add_task(self):
+        if not self.project_id:
+            return
+        taskname, ok = QInputDialog.getText(self, "Neuer Task", "Tasknamen eingeben:")
+        if ok and taskname:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO Tasks (taskname, status, assigned_to_project) VALUES (?, ?, ?)",
+                (taskname, "backlog", self.project_id),
+            )
+            conn.commit()
+            conn.close()
+            self.load_tasks()
+```
+
+---
+
+### **Erklärung:**
+- **`MainWindow`**:
+  - Zeigt eine Liste der Projekte und einen Button zum Hinzufügen eines neuen Projekts.
+  - Lädt Projektdetails bei Auswahl eines Projekts.
+
+- **`ProjectView`**:
+  - Zeigt die Kanban-Listen für ein ausgewähltes Projekt.
+  - Ermöglicht das Hinzufügen von Tasks zu einem Projekt.
+
+- **SQLite-Datenbank**:
+  - Speichert Projekte und Aufgaben.
+  - Die Tabellen `Projects` und `Tasks` sind miteinander verknüpft.
+
+Das Programm kann leicht erweitert werden. Beispielsweise könnten Drag-and-Drop-Funktionen für die Kanban-Listen implementiert werden, um Aufgaben zwischen den Status zu verschieben.

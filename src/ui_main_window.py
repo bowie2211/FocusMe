@@ -4,23 +4,41 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QMimeData
 from PySide6.QtGui import QDrag
-from task import Task, TaskInputDialog
+from view.ui_task_input_dlg import TaskInputDialog
+from model.focusme_model import FocusMeData, Project, KanbanBoardColumns
+from control.focusme_control import FocusMeControl
+
 
 class KanbanBoard(QWidget):
-    def __init__(self):
+    def __init__(self, add_task_callback):
+        """_summary_
+        """
         super().__init__()
         self.layout = QHBoxLayout()
         self.setLayout(self.layout)
-
+        self.add_task_callback = add_task_callback
         # Spalten für das Board
         self.columns = {}
-        for title in ["Backlog", "In Progress", "Done"]:
-            self.columns[title] = self.create_column(title)
-            self.layout.addWidget(self.columns[title])
+        for col in KanbanBoardColumns:
+            self.columns[col.value] = self.create_column(col.value)
+            self.layout.addWidget(self.columns[col.value])
+            
+        # for title in ["Backlog", "In Progress", "Done"]:
+        #     self.columns[title] = self.create_column(title)
+        #     self.layout.addWidget(self.columns[title])
 
-        self.tasks = {"Backlog": [], "In Progress": [], "Done": []}
+        # Fixme this is a model that is tightyl coupled to a view
+        #self.tasks = {"Backlog": [], "In Progress": [], "Done": []}
 
     def create_column(self, title):
+        """_summary_
+
+        Args:
+            title (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         column_widget = QWidget()
         column_layout = QVBoxLayout()
         column_widget.setLayout(column_layout)
@@ -41,27 +59,60 @@ class KanbanBoard(QWidget):
         return column_widget
 
     def add_task(self, list_widget, column_name):
-        #task_name, ok = QInputDialog.getText(self, "Task hinzufügen", "Taskname:")
+        """_summary_
+
+        Args:
+            list_widget (_type_): _description_
+            column_name (_type_): _description_
+        """
+        # task_name, ok = QInputDialog.getText(self, "Task hinzufügen", "Taskname:")
         dialog = TaskInputDialog()
         task = dialog.get_task(column_name)
         item = QListWidgetItem(task.taskname)
         item.setData(Qt.UserRole, task)
         list_widget.addItem(item)
-        self.tasks[column_name].append(task)
+        #self.tasks[column_name].append(task)
+        self.add_task_callback(task)
+        
+
+    def load_tasks(self, project):
+        """_summary_
+
+        Args:
+            project (_type_): _description_
+        """
+        
+        #Step 1 
+        #self.focusme_control.
+        # Step 1: delete old entries
+        # Step 2: Pupulate with new task from new project
+        print("todo")
 
 
 class CustomListWidget(QListWidget):
+    """_summary_
+
+    Args:
+        QListWidget (_type_): _description_
+    """
+
     def __init__(self, column_name, board):
         super().__init__()
         self.column_name = column_name
         self.board = board
 
     def startDrag(self, supportedActions):
+        """_summary_
+
+        Args:
+            supportedActions (_type_): _description_
+        """
         item = self.currentItem()
         if item:
             mime_data = QMimeData()
             mime_data.setText(item.text())
-            mime_data.setData("application/x-kanban-task", self.column_name.encode())
+            mime_data.setData("application/x-kanban-task",
+                              self.column_name.encode())
 
             drag = QDrag(self)
             drag.setMimeData(mime_data)
@@ -78,7 +129,8 @@ class CustomListWidget(QListWidget):
     def dropEvent(self, event):
         if event.mimeData().hasFormat("application/x-kanban-task"):
             task_name = event.mimeData().text()
-            source_column = event.mimeData().data("application/x-kanban-task").data().decode()
+            source_column = event.mimeData().data(
+                "application/x-kanban-task").data().decode()
             self.add_task_to_column(task_name, source_column)
             event.acceptProposedAction()
 
@@ -90,7 +142,7 @@ class CustomListWidget(QListWidget):
         parent_board = self.board
         task_data = None
         for task in parent_board.tasks[source_column]:
-            if task["Taskname"] == task_name:
+            if task.taskname == task_name:
                 task_data = task
                 break
 
@@ -103,17 +155,30 @@ class CustomListWidget(QListWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    """_summary_
+
+    Args:
+        QMainWindow (_type_): _description_
+    """
+    def __init__(self, focusme_data_model, focusme_control):
+        """_summary_
+
+        Args:
+            focusme_data_model (_type_): _description_
+        """
         super().__init__()
         self.setWindowTitle("FocusMe")
         self.setGeometry(100, 100, 1200, 800)
-
+        self.focusme_data_model = focusme_data_model
+        self.focusme_control = focusme_control
         self.projects = {}
         self.current_project = None
 
         self.init_ui()
 
     def init_ui(self):
+        """_summary_
+        """
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
 
@@ -150,7 +215,7 @@ class MainWindow(QMainWindow):
         main_area.addLayout(project_layout, 1)
 
         # Kanban-Board
-        self.kanban_board = KanbanBoard()
+        self.kanban_board = KanbanBoard(self.update_data_model)
         main_area.addWidget(self.kanban_board, 4)
 
         # Rechte Seite mit Task-Details
@@ -168,7 +233,8 @@ class MainWindow(QMainWindow):
             "Subtasks": QLineEdit(),
         }
 
-        self.detail_fields["Repeat"].addItems(["never", "day", "week", "month"])
+        self.detail_fields["Repeat"].addItems(
+            ["never", "day", "week", "month"])
 
         for key, widget in self.detail_fields.items():
             details_layout.addRow(QLabel(key), widget)
@@ -180,10 +246,14 @@ class MainWindow(QMainWindow):
         main_area.addWidget(self.details_panel, 2)
 
     def add_project(self):
-        project_name, ok = QInputDialog.getText(self, "Projekt hinzufügen", "Projektname:")
+        project_name, ok = QInputDialog.getText(
+            self, "Projekt hinzufügen", "Projektname:")
         if ok and project_name:
-            self.projects[project_name] = {"Backlog": [], "In Progress": [], "Done": []}
+            # self.projects[project_name] = {
+            #     "Backlog": [], "In Progress": [], "Done": []}
             self.project_list.addItem(project_name)
+            self.focusme_data_model.add_project(Project(project_name))
+            self.focusme_control.set_current_project(self.focusme_data_model.get_project(project_name)) 
 
     def delete_project(self):
         selected_item = self.project_list.currentItem()
@@ -203,8 +273,11 @@ class MainWindow(QMainWindow):
             self.save_current_project()
 
         project_name = item.text()
+        self.focusme_control.set_current_project(self.focusme_data_model.get_project(item.text()))
         self.current_project = project_name
-        self.kanban_board.load_tasks(self.projects[project_name])
+        # self.kanban_board.load_tasks(self.projects[project_name])
+        self.kanban_board.load_tasks(
+            self.focusme_data_model.get_project(project_name))
 
     def save_current_project(self):
         if self.current_project:
@@ -212,7 +285,9 @@ class MainWindow(QMainWindow):
 
     def show_task_details(self, task_data):
         for key, widget in self.detail_fields.items():
-            value = task_data.get(key, "")
+
+            # value = task_data.get(key, "") FIXME
+            value = task_data.taskname
             if isinstance(widget, QLineEdit):
                 widget.setText(value)
             elif isinstance(widget, QDateEdit):
@@ -224,3 +299,14 @@ class MainWindow(QMainWindow):
     def save_task_details(self):
         # Speichere Task-Änderungen
         pass  # Implementiere Speichern-Logik hier
+    
+    def update_data_model(self,task):
+        """_This is function is used as a callback function in KanbanBoard in
+        order to update the global data model with new tasks added to the board_
+
+        Args:
+            task (_Task_): _Task information from an added task_
+        """       
+        proj = self.focusme_control.get_current_project()
+        task.assigned_project = proj.name
+        proj.add_task(task)

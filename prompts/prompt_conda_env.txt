@@ -1,0 +1,65 @@
+Prompt1:
+Aufgabe: Entwicklung einer Applikation für Windows 11
+Entwicklungsumgebung: 
+IDE: Visual Code, 
+Programmiersprache: Python 
+GUI-Framework: Qt
+Applikationsname: FocusMe
+Datenbank: SQLite
+
+Schreibe ein conda Befehl, der ein neues Environemnt namens Focus commit erzeugt und die notwendigen Packages installiert.
+Schreibe die benötigten packages in ein file, so dass man die Umgebung wieder reproduzieren kann.
+Wechlse in das neue Environment
+
+Antwort:
+Hier ist ein Ablauf, um ein neues Conda-Environment namens `FocusMe` zu erstellen, die notwendigen Pakete zu installieren und die Umgebung zu speichern.
+
+---
+
+### **1. Erstelle ein neues Conda-Environment und installiere die notwendigen Pakete**
+Führe diesen Befehl aus, um die Umgebung zu erstellen und die Pakete zu installieren:
+
+```bash
+conda create --name FocusMe python=3.10 pyqt sqlite
+```
+
+### **2. Aktiviere die neue Umgebung**
+Wechsle in die neue Umgebung mit:
+
+```bash
+conda activate FocusMe
+```
+
+---
+
+### **3. Generiere eine Reproduktionsdatei (`environment.yml`)**
+Nachdem die Pakete installiert wurden, kannst du die Umgebung in einer YAML-Datei speichern, um sie später reproduzieren zu können. Führe diesen Befehl aus:
+
+```bash
+conda env export --name FocusMe --no-builds > environment.yml
+```
+
+Das generiert eine Datei `environment.yml` mit folgendem Inhalt (ungefähr):
+
+```yaml
+name: FocusMe
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pyqt
+  - sqlite
+```
+
+---
+
+### **4. Umgebung mit der YAML-Datei wiederherstellen**
+Um die Umgebung auf einem anderen Rechner oder in der Zukunft neu zu erstellen, nutze:
+
+```bash
+conda env create --file environment.yml
+```
+
+---
+
+Jetzt bist du bereit, in der Umgebung weiterzuarbeiten! 😊

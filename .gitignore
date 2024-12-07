@@ -160,3 +160,23 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+design/FocusMe/.runtime/.save
+design/FocusMe/.runtime/lock.dat
+design/FocusMe/.runtime/lock.info
+design/FocusMe/.runtime/projectInfo.html
+design/FocusMe/.runtime/fragments/FocusMe/.index/index.dbf.0
+design/FocusMe/.runtime/fragments/FocusMe/.index/index.dbf.t
+design/FocusMe/.runtime/fragments/FocusMe/.index/index.dbr.0
+design/FocusMe/.runtime/fragments/FocusMe/.index/index.dbr.t
+design/FocusMe/.runtime/fragments/FocusMe/.index/index.idf.0
+design/FocusMe/.runtime/fragments/FocusMe/.index/index.idf.t
+design/FocusMe/.runtime/fragments/FocusMe/.index/index.idr.0
+design/FocusMe/.runtime/fragments/FocusMe/.index/index.idr.t
+design/FocusMe/data/backups/modules/SysMLArchitect/SysMLArchitect_5.4.00.jmdac
+/.vscode
+/design/FocusMe/data
+/design
+/old
+src/focusme.db
+env_files/environment_qt6.yml
+focusme.db
