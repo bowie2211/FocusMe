@@ -1,7 +1,7 @@
 import sys
 from PySide6.QtWidgets import QApplication
-from ui_main_window import MainWindow
-from database import init_db
+from view.ui_main_window import MainWindow
+from model.focusme_db import initialize_database
 from model.focusme_model import FocusMeData
 from control.focusme_control import FocusMeControl
 
@@ -9,7 +9,7 @@ def main():
     """_summary_
     """
     # Datenbank initialisieren
-    init_db()
+    conn=initialize_database(db_name="focusme.db")
     focusme_data = FocusMeData()
     focusme_control = FocusMeControl()
     # Anwendung starten

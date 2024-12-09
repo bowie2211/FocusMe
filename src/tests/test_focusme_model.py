@@ -39,4 +39,4 @@ class TestProject(unittest.TestCase):
 class TestTask(unittest.TestCase):
     def test_create_task(self):
         task = Task()
-        self.assertEqual(task.assigned_kanban_swimlane,KanbanBoardColumns.BACKLOG)
+        self.assertEqual(task.assigned_kanban_swimlane,KanbanBoardColumns.BACKLOG.value)

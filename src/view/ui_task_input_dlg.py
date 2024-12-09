@@ -86,8 +86,8 @@ class TaskInputDialog(QDialog):
                 estimated_pomos=self.pomos_spinbox.value(),
                 date_to_perform=self.date_edit.date().toString("dd.MM.yyyy"),
                 repeat=RepeatEnum(self.repeat_combo.currentText()),
-                assigned_to_project=self.project_edit.text().strip(),
-                assigned_kanban=kanban_bucket,
+                assigned_project=self.project_edit.text().strip(),
+                assigned_kanban_swimlane=kanban_bucket,
                 tag=self.tag_edit.text().strip(),
                 subtasks=subtasks
             )

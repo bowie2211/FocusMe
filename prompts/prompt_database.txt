@@ -1,0 +1,218 @@
+Wie erzeuge ich aus der FocusMeModel Datenstruktur (Klasse) eine Serialisierung in einer SQLite Datenbank.
+Die FokusMeData entält eine Liste von Project Objekten.
+Ein Project Object hat ein Dictionary mit den Einträgen "Backlog", "In Progress" und "Done"
+Jeder dieser Einträge kann beliebig viele Task Objekte enthalten.
+Ein Task Objekt hat wiederum folgende Attribute: 
+        taskname string
+        description string
+        estimated_pomodoros integer        performed_pomodoros integer
+        date_to_perform datum 
+        repeat string
+        assigned_project string
+        assigned_kanban_swimlane string
+        self.tag: string
+        subtasks liste
+
+Antwort
+
+
+Um die Struktur der Klasse `FocusMeModel` und ihrer verschachtelten Objekte (`Project`, `Task`, etc.) in einer SQLite-Datenbank zu speichern, benötigen Sie einen Ansatz, der sowohl die Hierarchie als auch die Beziehungen der Daten abbildet. Hier ist ein schrittweiser Leitfaden:
+
+---
+
+### **1. Datenmodell analysieren**
+- **FocusMeModel** enthält eine Liste von `Project`-Objekten.
+- **Project** enthält ein Dictionary mit Kanban-Spalten (`Backlog`, `In Progress`, `Done`), die jeweils Listen von `Task`-Objekten enthalten.
+- **Task** hat mehrere Attribute und eine Liste von Subtasks.
+
+Daraus ergeben sich mindestens drei Tabellen in der SQLite-Datenbank:
+1. **Projects**: Informationen über Projekte.
+2. **Tasks**: Informationen über Aufgaben. Jede Aufgabe ist einem Projekt und einer Kanban-Spalte zugeordnet.
+3. **Subtasks**: Informationen über die Unteraufgaben zu einer bestimmten Aufgabe.
+
+---
+
+### **2. SQLite-Tabellenstruktur**
+#### Tabelle für Projekte:
+```sql
+CREATE TABLE Projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+);
+```
+
+#### Tabelle für Aufgaben:
+```sql
+CREATE TABLE Tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    taskname TEXT NOT NULL,
+    description TEXT,
+    estimated_pomodoros INTEGER,
+    performed_pomodoros INTEGER,
+    date_to_perform DATE,
+    repeat TEXT,
+    assigned_project INTEGER NOT NULL,
+    assigned_kanban_swimlane TEXT NOT NULL,
+    tag TEXT,
+    FOREIGN KEY (assigned_project) REFERENCES Projects (id)
+);
+```
+
+#### Tabelle für Unteraufgaben:
+```sql
+CREATE TABLE Subtasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    subtaskname TEXT NOT NULL,
+    FOREIGN KEY (task_id) REFERENCES Tasks (id)
+);
+```
+
+---
+
+### **3. Serialisierung in die Datenbank**
+Die Serialisierung Ihrer Python-Datenstrukturen erfordert:
+1. **Datenbankverbindung und Erstellung der Tabellen.**
+2. **Speichern der Daten aus `FocusMeModel` in die Datenbank.**
+
+#### Verbindung und Tabellen erstellen:
+```python
+import sqlite3
+
+def initialize_database(db_name="focusme.db"):
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+    
+    # Tabellen erstellen
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL
+        );
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            taskname TEXT NOT NULL,
+            description TEXT,
+            estimated_pomodoros INTEGER,
+            performed_pomodoros INTEGER,
+            date_to_perform DATE,
+            repeat TEXT,
+            assigned_project INTEGER NOT NULL,
+            assigned_kanban_swimlane TEXT NOT NULL,
+            tag TEXT,
+            FOREIGN KEY (assigned_project) REFERENCES Projects (id)
+        );
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Subtasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            subtaskname TEXT NOT NULL,
+            FOREIGN KEY (task_id) REFERENCES Tasks (id)
+        );
+    """)
+    
+    conn.commit()
+    return conn
+```
+
+#### Daten in die Datenbank speichern:
+```python
+def save_focusme_model_to_db(conn, focusme_model):
+    cursor = conn.cursor()
+    
+    # Projekte speichern
+    for project in focusme_model.projects:  # Annahme: focusme_model.projects ist eine Liste von Projekten
+        cursor.execute("INSERT INTO Projects (name) VALUES (?);", (project.name,))
+        project_id = cursor.lastrowid
+        
+        # Tasks pro Kanban-Spalte speichern
+        for kanban_swimlane, tasks in project.kanban.items():
+            for task in tasks:
+                cursor.execute("""
+                    INSERT INTO Tasks (
+                        taskname, description, estimated_pomodoros, performed_pomodoros, 
+                        date_to_perform, repeat, assigned_project, assigned_kanban_swimlane, tag
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """, (
+                    task.taskname, task.description, task.estimated_pomodoros, task.performed_pomodoros,
+                    task.date_to_perform, task.repeat, project_id, kanban_swimlane, task.tag
+                ))
+                task_id = cursor.lastrowid
+                
+                # Subtasks speichern
+                for subtask in task.subtasks:
+                    cursor.execute("INSERT INTO Subtasks (task_id, subtaskname) VALUES (?, ?);", (task_id, subtask))
+    
+    conn.commit()
+```
+
+---
+
+### **4. Datenmodell für die Serialisierung anpassen**
+#### Beispiel für das Datenmodell:
+```python
+class Task:
+    def __init__(self, taskname, description="", estimated_pomodoros=0, performed_pomodoros=0,
+                 date_to_perform=None, repeat="", tag="", subtasks=None):
+        self.taskname = taskname
+        self.description = description
+        self.estimated_pomodoros = estimated_pomodoros
+        self.performed_pomodoros = performed_pomodoros
+        self.date_to_perform = date_to_perform
+        self.repeat = repeat
+        self.tag = tag
+        self.subtasks = subtasks if subtasks else []
+
+
+class Project:
+    def __init__(self, name):
+        self.name = name
+        self.kanban = {
+            "Backlog": [],
+            "In Progress": [],
+            "Done": []
+        }
+
+
+class FocusMeModel:
+    def __init__(self):
+        self.projects = []
+```
+
+---
+
+### **5. Beispiel für das Speichern von Daten**
+```python
+# Beispiel-Datenmodell
+focusme = FocusMeModel()
+project1 = Project("Projekt 1")
+task1 = Task("Task 1", "Beschreibung 1", 3, 1, "2023-12-31", "weekly", "tag1", ["Subtask 1", "Subtask 2"])
+project1.kanban["Backlog"].append(task1)
+focusme.projects.append(project1)
+
+# Serialisierung in die SQLite-Datenbank
+conn = initialize_database()
+save_focusme_model_to_db(conn, focusme)
+conn.close()
+```
+
+---
+
+### **6. Abruf von Daten aus der Datenbank**
+Abrufmethoden könnten so aussehen:
+```python
+def load_projects_from_db(conn):
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM Projects;")
+    projects = cursor.fetchall()
+    for project_id, name in projects:
+        print(f"Projekt: {name} (ID: {project_id})")
+```
+
+---
+
+### **Fazit**
+Mit diesem Ansatz können Sie das verschachtelte Datenmodell in einer SQLite-Datenbank abbilden und später wieder laden. Die Hierarchie (Projekte → Aufgaben → Unteraufgaben) wird dabei durch Beziehungen zwischen den Tabellen abgebildet.

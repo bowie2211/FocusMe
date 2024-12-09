@@ -7,7 +7,7 @@ from PySide6.QtGui import QDrag
 from view.ui_task_input_dlg import TaskInputDialog
 from model.focusme_model import FocusMeData, Project, KanbanBoardColumns
 from control.focusme_control import FocusMeControl
-
+from model.focusme_db import add_project
 
 class KanbanBoard(QWidget):
     def __init__(self, add_task_callback):
@@ -62,8 +62,8 @@ class KanbanBoard(QWidget):
         """_summary_
 
         Args:
-            list_widget (_type_): _description_
-            column_name (_type_): _description_
+            list_widget (_type_): _list with current widgets_
+            column_name (_type_): _name of kanban column_
         """
         # task_name, ok = QInputDialog.getText(self, "Task hinzufügen", "Taskname:")
         dialog = TaskInputDialog()
@@ -71,7 +71,8 @@ class KanbanBoard(QWidget):
         item = QListWidgetItem(task.taskname)
         item.setData(Qt.UserRole, task)
         list_widget.addItem(item)
-        #self.tasks[column_name].append(task)
+        #this is a callback function call that adds the new task
+        #the the correct project and kanban_lane.
         self.add_task_callback(task)
         
 
@@ -254,6 +255,7 @@ class MainWindow(QMainWindow):
             self.project_list.addItem(project_name)
             self.focusme_data_model.add_project(Project(project_name))
             self.focusme_control.set_current_project(self.focusme_data_model.get_project(project_name)) 
+            add_project()
 
     def delete_project(self):
         selected_item = self.project_list.currentItem()

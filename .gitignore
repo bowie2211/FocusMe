@@ -180,3 +180,6 @@ design/FocusMe/data/backups/modules/SysMLArchitect/SysMLArchitect_5.4.00.jmdac
 src/focusme.db
 env_files/environment_qt6.yml
 focusme.db
+test.db
+test_db
+test_db_2
