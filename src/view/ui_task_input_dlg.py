@@ -83,9 +83,9 @@ class TaskInputDialog(QDialog):
             subtasks = [self.subtasks_list.item(i).text() for i in range(self.subtasks_list.count())]
             return Task(
                 taskname=self.taskname_edit.text().strip(),
-                estimated_pomos=self.pomos_spinbox.value(),
+                estimated_pomodoros=self.pomos_spinbox.value(),
                 date_to_perform=self.date_edit.date().toString("dd.MM.yyyy"),
-                repeat=RepeatEnum(self.repeat_combo.currentText()),
+                repeat=RepeatEnum(self.repeat_combo.currentText()).value,
                 assigned_project=self.project_edit.text().strip(),
                 assigned_kanban_swimlane=kanban_bucket,
                 tag=self.tag_edit.text().strip(),

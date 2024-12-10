@@ -76,6 +76,7 @@ class TestFocusMeDB(unittest.TestCase):
         self.assertEqual(project.tasks[KanbanBoardColumns.IN_PROGRESS.value][0].taskname,task2.taskname)
         self.assertEqual(project.tasks[KanbanBoardColumns.DONE.value][0].taskname,task3.taskname)
   
+  
     
     def test_tasks_table_schema(self):
         conn=initialize_database() #in memory data base 

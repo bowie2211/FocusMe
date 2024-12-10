@@ -9,12 +9,12 @@ def main():
     """_summary_
     """
     # Datenbank initialisieren
-    conn=initialize_database(db_name="focusme.db")
+    db_conn=initialize_database(db_name="focusme2.db")
     focusme_data = FocusMeData()
     focusme_control = FocusMeControl()
     # Anwendung starten
     app = QApplication(sys.argv)
-    window = MainWindow(focusme_data, focusme_control)
+    window = MainWindow(focusme_data, focusme_control, db_conn)
     window.show()
     sys.exit(app.exec())
 

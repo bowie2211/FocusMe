@@ -7,7 +7,7 @@ from PySide6.QtGui import QDrag
 from view.ui_task_input_dlg import TaskInputDialog
 from model.focusme_model import FocusMeData, Project, KanbanBoardColumns
 from control.focusme_control import FocusMeControl
-from model.focusme_db import add_project
+from model.focusme_db import add_project_to_db, add_task_to_db
 
 class KanbanBoard(QWidget):
     def __init__(self, add_task_callback):
@@ -55,7 +55,7 @@ class KanbanBoard(QWidget):
         add_btn = QPushButton(f"{title} hinzufügen")
         add_btn.clicked.connect(lambda: self.add_task(list_widget, title))
         column_layout.addWidget(add_btn)
-
+        column_widget.list_widget = list_widget #save list widget for later access (e.g. delete entries)
         return column_widget
 
     def add_task(self, list_widget, column_name):
@@ -76,17 +76,24 @@ class KanbanBoard(QWidget):
         self.add_task_callback(task)
         
 
-    def load_tasks(self, project):
+    def updated_boards(self, project):
         """_summary_
 
         Args:
             project (_type_): _description_
         """
         
-        #Step 1 
-        #self.focusme_control.
-        # Step 1: delete old entries
+         # Step 1: delete old entries
+        for column_widget in self.columns.values():
+            column_widget.list_widget.clear()  # clear elements in the list widgets
+       
+       
         # Step 2: Pupulate with new task from new project
+        for column, tasks in project.items():
+            if column in self.columns:
+                for task in tasks:
+                    self.columns[column].addItem(task)  # GUI-Element mit neuen Tasks befüllen  
+        
         print("todo")
 
 
@@ -161,7 +168,7 @@ class MainWindow(QMainWindow):
     Args:
         QMainWindow (_type_): _description_
     """
-    def __init__(self, focusme_data_model, focusme_control):
+    def __init__(self, focusme_data_model, focusme_control, db_conn):
         """_summary_
 
         Args:
@@ -172,6 +179,7 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
         self.focusme_data_model = focusme_data_model
         self.focusme_control = focusme_control
+        self.db_conn = db_conn
         self.projects = {}
         self.current_project = None
 
@@ -250,12 +258,10 @@ class MainWindow(QMainWindow):
         project_name, ok = QInputDialog.getText(
             self, "Projekt hinzufügen", "Projektname:")
         if ok and project_name:
-            # self.projects[project_name] = {
-            #     "Backlog": [], "In Progress": [], "Done": []}
             self.project_list.addItem(project_name)
             self.focusme_data_model.add_project(Project(project_name))
             self.focusme_control.set_current_project(self.focusme_data_model.get_project(project_name)) 
-            add_project()
+            add_project_to_db(self.db_conn, self.focusme_data_model.get_project(project_name))
 
     def delete_project(self):
         selected_item = self.project_list.currentItem()
@@ -271,19 +277,15 @@ class MainWindow(QMainWindow):
         del self.projects[project_name]
 
     def switch_project(self, item):
-        if self.current_project:
-            self.save_current_project()
+        #if self.current_project:
+        #    self.save_current_project()
 
         project_name = item.text()
         self.focusme_control.set_current_project(self.focusme_data_model.get_project(item.text()))
         self.current_project = project_name
         # self.kanban_board.load_tasks(self.projects[project_name])
-        self.kanban_board.load_tasks(
-            self.focusme_data_model.get_project(project_name))
+        self.kanban_board.updated_boards(self.focusme_data_model.get_project(project_name))
 
-    def save_current_project(self):
-        if self.current_project:
-            self.projects[self.current_project] = self.kanban_board.tasks
 
     def show_task_details(self, task_data):
         for key, widget in self.detail_fields.items():
@@ -312,3 +314,4 @@ class MainWindow(QMainWindow):
         proj = self.focusme_control.get_current_project()
         task.assigned_project = proj.name
         proj.add_task(task)
+        add_task_to_db(self.db_conn, task)
