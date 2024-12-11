@@ -1,5 +1,5 @@
 import sqlite3
-from model.focusme_model import Task, Project
+from model.focusme_model import Task, Project, FocusMeData
 
 def initialize_database(conn=None, db_name=None):
     """_summary_
@@ -83,6 +83,44 @@ def save_focusme_model_to_db(conn, focusme_model):
     conn.commit()
 
 
+def generate_focusme_data_obj(conn):
+    """
+    Lädt die Projekte und Tasks aus der SQLite-Datenbank in ein FocusMeData-Objekt.
+    This function is required when th App is started and all data stored in the db
+    has to be loaded into the RAM
+    Args:
+        conn: SQLite-Verbindung.
+
+    Returns:
+        Ein FocusMeData-Objekt, das alle Projekte und Tasks aus der Datenbank enthält.
+    """
+    focusme_data = FocusMeData()
+    cursor = conn.cursor()
+
+    # Lade alle Projekte aus der Datenbank
+    cursor.execute("SELECT id, name FROM Projects;")
+    projects = cursor.fetchall()
+
+    for project_id, project_name in projects:
+        # get alls tasks of the project
+        tasks_table = load_project_tasks_from_db(cursor, project_name)
+        # reconstruct Project-Object
+        project = generate_project_obj(project_name,tasks_table)
+        # Füge das Projekt zu FocusMeData hinzu
+        focusme_data.add_project(project)
+
+    return focusme_data
+
+
+def load_project_tasks_from_db(cursor, project_name):
+    cursor.execute("""
+        SELECT taskname, description, estimated_pomodoros, performed_pomodoros, 
+               date_to_perform, repeat, tag, assigned_kanban_swimlane, assigned_project
+        FROM Tasks
+        WHERE assigned_project = ?;
+    """, (project_name ,))
+    return cursor.fetchall()
+
 def add_task_to_db(conn, task):
     cursor = conn.cursor()
     cursor.execute("""
@@ -134,21 +172,40 @@ def get_project_by_name(conn, project_name):
     if not result:
         raise ValueError(f"Kein Projekt mit dem Namen '{project_name}' gefunden.")
     
-    project_id = result[0]
+    # get alls tasks of the project
+    tasks_table = load_project_tasks_from_db(cursor, project_name)
+    # reconstruct Project-Object 
+    project = generate_project_obj(project_name,tasks_table)
+    return project
 
-    # Alle Tasks des Projekts abrufen
-    cursor.execute("""
-        SELECT taskname, description, estimated_pomodoros, performed_pomodoros, 
-               date_to_perform, repeat, tag, assigned_kanban_swimlane, assigned_project
-        FROM Tasks
-        WHERE assigned_project = ?;
-    """, (project_name ,))
-    tasks = cursor.fetchall()
-    
-    # Projekt-Objekt rekonstruieren
+
+def generate_project_obj(project_name, tasks_table):
+    """_generates a Project object from a Project name and a SQLite Tasks Table_
+
+    Args:
+        project_name (_string_): _project name_
+        tasks_table (_type_): _result from a Tasks table query_
+
+    Returns:
+        _Project_: _Project opbject with filled kanban tasks_
+    """
     project = Project(project_name)
-    for task_row in tasks:
-        task = Task(
+    for task_row in tasks_table:
+        task = generate_task_obj(task_row)
+        project.add_task(task)
+    
+    return project
+
+def generate_task_obj(task_row):
+    """_generates a Task object from a SQLite Tasks Table_
+
+    Args:
+        task_row (_type_): _result from a Tasks table query_
+
+    Returns:
+        _type_: _description_
+    """    
+    return Task(
             taskname=task_row[0],
             description=task_row[1],
             estimated_pomodoros=task_row[2],
@@ -159,42 +216,6 @@ def get_project_by_name(conn, project_name):
             assigned_kanban_swimlane=task_row[7],
             tag=task_row[6]
             )
-        #kanban_swimlane = task_row[7]
-        #project.kanban[kanban_swimlane].append(task)
-        project.add_task(task)
-    
-    return project
-
-# def get_projects():
-#     conn = sqlite3.connect(DB_FILE)
-#     cursor = conn.cursor()
-#     cursor.execute("SELECT id, name FROM Projects")
-#     projects = cursor.fetchall()
-#     conn.close()
-#     return projects
-
-# def add_project(name, description):
-#     conn = sqlite3.connect(DB_FILE)
-#     cursor = conn.cursor()
-#     cursor.execute("INSERT INTO Projects (name, description) VALUES (?, ?)", (name, description))
-#     conn.commit()
-#     conn.close()
-
-# def get_tasks_by_status(project_id, status):
-#     conn = sqlite3.connect(DB_FILE)
-#     cursor = conn.cursor()
-#     cursor.execute("SELECT id, name FROM Tasks WHERE project_id = ? AND status = ?", (project_id, status))
-#     tasks = cursor.fetchall()
-#     conn.close()
-#     return tasks
-
-# def add_task(name, project_id, status):
-#     conn = sqlite3.connect(DB_FILE)
-#     cursor = conn.cursor()
-#     cursor.execute("INSERT INTO Tasks (name, project_id, status) VALUES (?, ?, ?)", (name, project_id, status))
-#     conn.commit()
-#     conn.close()
-
 
 def get_table_schema(conn, table_name):
     schema = []

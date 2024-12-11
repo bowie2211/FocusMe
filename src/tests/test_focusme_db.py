@@ -1,7 +1,8 @@
 import unittest
 import sqlite3
 from model.focusme_model import Task, Project, KanbanBoardColumns
-from model.focusme_db import initialize_database, add_project_to_db, add_task_to_db, get_table_schema, get_project_by_name
+from model.focusme_db import initialize_database, add_project_to_db, add_task_to_db, get_table_schema, get_project_by_name, \
+                             generate_focusme_data_obj
 
 class TestFocusMeDB(unittest.TestCase):
     def test_initialize_db(self):
@@ -90,3 +91,46 @@ class TestFocusMeDB(unittest.TestCase):
         self.assertEqual(schema[7][1],"assigned_project")
         self.assertEqual(schema[8][1],"assigned_kanban_swimlane")
         self.assertEqual(schema[9][1],"tag")
+
+    def test_generate_focusme_data_obj(self):
+        conn=initialize_database() #in memory data base 
+        project = Project("P2")
+        prj_id=add_project_to_db(conn, project)
+        print(prj_id)
+        task1 = Task(
+        taskname="Neue Backlog-Task", 
+        description="Eine neue Aufgabe", 
+        estimated_pomodoros=3, 
+        performed_pomodoros=0, 
+        assigned_kanban_swimlane=KanbanBoardColumns.BACKLOG.value,
+        date_to_perform="2023-12-10", 
+        repeat="weekly", 
+        assigned_project="P2",
+        tag="Important")
+        add_task_to_db(conn, task=task1)
+        task2 = Task(
+        taskname="Neue in_progress-Task", 
+        description="Eine neue Aufgabe", 
+        estimated_pomodoros=3, 
+        performed_pomodoros=0, 
+        assigned_kanban_swimlane=KanbanBoardColumns.IN_PROGRESS.value,
+        date_to_perform="2023-12-10", 
+        repeat="weekly", 
+        assigned_project="P2",
+        tag="Important")
+        add_task_to_db(conn, task=task2)
+        task3 = Task(
+        taskname="Neue done-Task", 
+        description="Eine neue Aufgabe", 
+        estimated_pomodoros=3, 
+        performed_pomodoros=0, 
+        assigned_kanban_swimlane=KanbanBoardColumns.DONE.value,
+        date_to_perform="2023-12-10", 
+        repeat="weekly", 
+        assigned_project="P2",
+        tag="Important")
+        add_task_to_db(conn, task=task3)
+        focusme_data = generate_focusme_data_obj(conn)
+        self.assertEqual(focusme_data.projects[0].tasks[KanbanBoardColumns.BACKLOG.value][0].taskname,task1.taskname)
+        self.assertEqual(focusme_data.projects[0].tasks[KanbanBoardColumns.IN_PROGRESS.value][0].taskname,task2.taskname)
+        self.assertEqual(focusme_data.projects[0].tasks[KanbanBoardColumns.DONE.value][0].taskname,task3.taskname)
