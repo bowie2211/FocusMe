@@ -83,18 +83,13 @@ class KanbanBoard(QWidget):
             project (_type_): _description_
         """
         
-         # Step 1: delete old entries
+         # Step 1: delete old entries and add new entries 
         for column_widget in self.columns.values():
             column_widget.list_widget.clear()  # clear elements in the list widgets
-       
-       
-        # Step 2: Pupulate with new task from new project
-        for column, tasks in project.items():
-            if column in self.columns:
-                for task in tasks:
-                    self.columns[column].addItem(task)  # GUI-Element mit neuen Tasks befüllen  
-        
-        print("todo")
+            for task in project.tasks[column_widget.list_widget.column_name]:
+                item = QListWidgetItem(task.taskname)
+                item.setData(Qt.UserRole, task)
+                column_widget.list_widget.addItem(item)
 
 
 class CustomListWidget(QListWidget):
@@ -209,9 +204,9 @@ class MainWindow(QMainWindow):
         # Linke Seite mit Projektliste
         project_layout = QVBoxLayout()
 
-        self.project_list = QListWidget()
-        self.project_list.itemClicked.connect(self.switch_project)
-        project_layout.addWidget(self.project_list)
+        self.project_list_q_widget = QListWidget()
+        self.project_list_q_widget.itemClicked.connect(self.switch_project)
+        project_layout.addWidget(self.project_list_q_widget)
 
         add_project_btn = QPushButton("Projekt hinzufügen")
         add_project_btn.clicked.connect(self.add_project)
@@ -253,18 +248,32 @@ class MainWindow(QMainWindow):
         details_layout.addRow(self.save_task_btn)
 
         main_area.addWidget(self.details_panel, 2)
+        self.populate_ui()
 
+    
+    def populate_ui(self):
+        for project in self.focusme_data_model.projects:
+
+            self.project_list_q_widget.addItem(project.name)
+        #set focus on current project
+        for index in range(self.project_list_q_widget.count()):
+            item = self.project_list_q_widget.item(index)
+            if item.text() == self.focusme_control.get_current_project().name:
+                self.project_list_q_widget.setCurrentItem(item)
+                self.project_list_q_widget.setFocus()
+        self.kanban_board.updated_boards(self.focusme_control.get_current_project())
+    
     def add_project(self):
         project_name, ok = QInputDialog.getText(
             self, "Projekt hinzufügen", "Projektname:")
         if ok and project_name:
-            self.project_list.addItem(project_name)
+            self.project_list_q_widget.addItem(project_name)
             self.focusme_data_model.add_project(Project(project_name))
             self.focusme_control.set_current_project(self.focusme_data_model.get_project(project_name)) 
             add_project_to_db(self.db_conn, self.focusme_data_model.get_project(project_name))
 
     def delete_project(self):
-        selected_item = self.project_list.currentItem()
+        selected_item = self.project_list_q_widget.currentItem()
         if not selected_item:
             return
 
@@ -273,7 +282,7 @@ class MainWindow(QMainWindow):
             self.kanban_board.clear_board()
             self.current_project = None
 
-        self.project_list.takeItem(self.project_list.row(selected_item))
+        self.project_list_q_widget.takeItem(self.project_list_q_widget.row(selected_item))
         del self.projects[project_name]
 
     def switch_project(self, item):
