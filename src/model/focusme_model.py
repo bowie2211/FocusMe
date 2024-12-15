@@ -31,7 +31,7 @@ class KanbanBoardColumns(Enum):
     """    
     BACKLOG = "Backlog"
     IN_PROGRESS = "In Progress"
-    DONE = "Done"
+    DONE = "DONE"
 
 
 class Task:
