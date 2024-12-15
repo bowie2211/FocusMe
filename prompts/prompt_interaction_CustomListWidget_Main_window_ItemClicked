@@ -1,0 +1,131 @@
+Wie stelle ich ein Interface zwischen folgenden UI Elementen her:
+
+In Klasse MainWindow wird das Datenmodell der Applikation verwaltet.
+
+In der Klasse MainWindow sind UI Elemente vorhanden die alle Details einer Task anzeigen.
+
+MainWindow hat mehrere Instanzen der Klasse "Kanbanboard" eine Klasse Kanbanboard enthält eine Klasse CustomListWidget die von QListWidget abgeleitet ist.
+
+Folgendes Problem: Im Objekt CustomListWidget wird ein ItemClicked Signal mit dem Slot  handle_item_clicked verbunden. Dieser Slot befindet sich im Scope von CustomListWidget.
+
+Die Informationen welches Element geklickt wurde muss an MainWindow übergeben werde, um dort die Details der Task darzustellen.
+
+Wie kann man das implementieren?
+
+Mache Vorschläge
+
+Antwort:
+
+Um die Kommunikation zwischen dem `CustomListWidget` und dem `MainWindow` zu realisieren, bietet sich die Verwendung von benutzerdefinierten Signalen an. Diese ermöglichen es, das `itemClicked`-Signal aus dem Scope von `CustomListWidget` an die `MainWindow`-Klasse weiterzuleiten, wo die Informationen verarbeitet werden können.
+
+Hier sind zwei mögliche Ansätze:
+
+---
+
+### **Ansatz 1: Benutzerdefiniertes Signal in `CustomListWidget`**
+Die Klasse `CustomListWidget` leitet ein benutzerdefiniertes Signal an `MainWindow` weiter. Dieses Signal enthält die relevanten Informationen.
+
+#### Code-Implementierung
+
+```python
+from PySide6.QtWidgets import QApplication, QListWidget, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtCore import Signal, QObject
+
+
+class CustomListWidget(QListWidget):
+    # Benutzerdefiniertes Signal, das den Text des geklickten Items übergibt
+    itemClickedSignal = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # Verbinde das standardmäßige itemClicked-Signal mit einem internen Slot
+        self.itemClicked.connect(self.handle_item_clicked)
+
+    def handle_item_clicked(self, item):
+        # Sende das benutzerdefinierte Signal mit dem Text des Items
+        self.itemClickedSignal.emit(item.text())
+
+
+class KanbanBoard(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QVBoxLayout()
+        self.list_widget = CustomListWidget()
+        self.layout.addWidget(self.list_widget)
+        self.setLayout(self.layout)
+
+        # Beispiel-Daten hinzufügen
+        self.list_widget.addItems(["Task 1", "Task 2", "Task 3"])
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Kanban Board App")
+
+        # Erstelle KanbanBoard-Instanz
+        self.kanban_board = KanbanBoard()
+        self.setCentralWidget(self.kanban_board)
+
+        # Verbinde das benutzerdefinierte Signal mit einem Slot in MainWindow
+        self.kanban_board.list_widget.itemClickedSignal.connect(self.display_task_details)
+
+    def display_task_details(self, task_name):
+        # Logik zur Verarbeitung der Task-Details
+        print(f"Details für {task_name} anzeigen")
+
+
+# Anwendung starten
+app = QApplication([])
+window = MainWindow()
+window.show()
+app.exec()
+```
+
+#### **Erklärung**
+1. **Benutzerdefiniertes Signal in `CustomListWidget`**:
+   - Ein neues Signal `itemClickedSignal` wird definiert und von `handle_item_clicked` ausgelöst.
+   - Dieses Signal wird von `itemClicked` des `QListWidget` angestoßen.
+   
+2. **Verbindung zu `MainWindow`**:
+   - In `MainWindow` wird das benutzerdefinierte Signal mit einem Slot (`display_task_details`) verbunden.
+   - Der Text des geklickten Items wird als Argument an den Slot übergeben.
+
+3. **Vorteile**:
+   - Klarer Signalfluss.
+   - `CustomListWidget` bleibt wiederverwendbar, da keine direkte Abhängigkeit von `MainWindow` besteht.
+
+---
+
+### **Ansatz 2: Direkte Kommunikation durch Parent-Referenz**
+Falls die Hierarchie eindeutig ist, kann `CustomListWidget` auch direkt mit seinem übergeordneten Widget (`MainWindow`) kommunizieren, indem es eine Parent-Referenz nutzt. Dies ist jedoch weniger flexibel und sollte mit Vorsicht verwendet werden.
+
+#### Code-Implementierung
+
+```python
+class CustomListWidget(QListWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.itemClicked.connect(self.handle_item_clicked)
+
+    def handle_item_clicked(self, item):
+        # Übergeordnete Instanz (MainWindow) aufrufen
+        main_window = self.window()  # Liefert das oberste übergeordnete Widget
+        if hasattr(main_window, "display_task_details"):
+            main_window.display_task_details(item.text())
+```
+
+#### **Erklärung**
+- **Direkte Kommunikation**:
+  - `CustomListWidget` ruft die Methode `display_task_details` direkt über `self.window()` auf, sofern diese vorhanden ist.
+- **Einschränkungen**:
+  - Weniger entkoppelt.
+  - `CustomListWidget` hängt von der Annahme ab, dass `MainWindow` über eine passende Methode verfügt.
+
+---
+
+### **Empfehlung**
+- Verwende **Ansatz 1**, da er die lose Kopplung zwischen den Klassen sicherstellt und die Wiederverwendbarkeit von `CustomListWidget` und `KanbanBoard` erhöht.
+- Nur wenn die Applikationsstruktur sehr einfach ist und eine enge Bindung akzeptabel ist, könnte **Ansatz 2** verwendet werden.
+
+Wenn du noch mehr Details oder Anpassungen benötigst, lass es mich wissen! 😊

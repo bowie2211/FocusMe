@@ -1,17 +1,28 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QListWidgetItem, QInputDialog, QLabel,
-    QLineEdit, QComboBox, QDateEdit, QFormLayout, QMenuBar, QMenu, QFrame
+    QLineEdit, QComboBox, QDateEdit, QFormLayout, QMenuBar, QMenu, QTextEdit
 )
-from PySide6.QtCore import Qt, QMimeData
+from PySide6.QtCore import Qt, QMimeData, Signal, QDate
 from PySide6.QtGui import QDrag
 from view.ui_task_input_dlg import TaskInputDialog
-from model.focusme_model import FocusMeData, Project, KanbanBoardColumns
-from control.focusme_control import FocusMeControl
+from model.focusme_model import Project, KanbanBoardColumns
 from model.focusme_db import add_project_to_db, add_task_to_db
 
 class KanbanBoard(QWidget):
+    """
+    Class dealing with kanbanboard features like adding task to
+    different columns and drag and drop btw.
+    the columns
+    """    
     def __init__(self, add_task_callback):
-        """_summary_
+        """
+        Constructor of KanbanBoard
+        
+        Args:
+            add_task_callback (function reference): a callback function in MainWindow to update data
+
+        Returns:
+            nothing
         """
         super().__init__()
         self.layout = QHBoxLayout()
@@ -22,22 +33,16 @@ class KanbanBoard(QWidget):
         for col in KanbanBoardColumns:
             self.columns[col.value] = self.create_column(col.value)
             self.layout.addWidget(self.columns[col.value])
-            
-        # for title in ["Backlog", "In Progress", "Done"]:
-        #     self.columns[title] = self.create_column(title)
-        #     self.layout.addWidget(self.columns[title])
-
-        # Fixme this is a model that is tightyl coupled to a view
-        #self.tasks = {"Backlog": [], "In Progress": [], "Done": []}
 
     def create_column(self, title):
-        """_summary_
+        """
+        Creates a kanbanboard column
 
         Args:
-            title (_type_): _description_
+            title (string): title of kanbanboard column
 
         Returns:
-            _type_: _description_
+            Complete kanbanboard column with ListWidget and pushbuttons
         """
         column_widget = QWidget()
         column_layout = QVBoxLayout()
@@ -55,17 +60,20 @@ class KanbanBoard(QWidget):
         add_btn = QPushButton(f"{title} hinzufügen")
         add_btn.clicked.connect(lambda: self.add_task(list_widget, title))
         column_layout.addWidget(add_btn)
-        column_widget.list_widget = list_widget #save list widget for later access (e.g. delete entries)
+        #save list widget for later access (e.g. delete entries)
+        column_widget.list_widget = list_widget 
         return column_widget
 
     def add_task(self, list_widget, column_name):
-        """_summary_
+        """
+        Opens the input dialoge for adding task information
 
         Args:
-            list_widget (_type_): _list with current widgets_
-            column_name (_type_): _name of kanban column_
+            list_widget (CustomListWidget): kanbanboard list widget in which add taks botton was pressed
+            column_name (string): name of kanban column
+        Returns:
+            nothing
         """
-        # task_name, ok = QInputDialog.getText(self, "Task hinzufügen", "Taskname:")
         dialog = TaskInputDialog()
         task = dialog.get_task(column_name)
         item = QListWidgetItem(task.taskname)
@@ -77,10 +85,14 @@ class KanbanBoard(QWidget):
         
 
     def updated_boards(self, project):
-        """_summary_
-
+        """
+        Method is called during a drag and drop action.
+        Clears all kanbanboard list widgets
+        and populates with new (post drag and drop)
+        setting
+        
         Args:
-            project (_type_): _description_
+            project (string): project name
         """
         
          # Step 1: delete old entries and add new entries 
@@ -93,19 +105,34 @@ class KanbanBoard(QWidget):
 
 
 class CustomListWidget(QListWidget):
-    """_summary_
-
-    Args:
-        QListWidget (_type_): _description_
     """
-
+    Class for a kanbanboard task list with drag and dropfeature
+    """
+    #definition of a signal which provides string for clicked item
+    #the string is a name of a task
+    itemClickedSignal = Signal(str, str)
     def __init__(self, column_name, board):
         super().__init__()
         self.column_name = column_name
         self.board = board
+        self.itemClicked.connect(self.handle_item_clicked)
+
+    def handle_item_clicked(self, item):
+        """
+        Method is connected to itemClicked signal from list widget
+        and emits item clicked signal with task name and kanbanboard
+        column information.
+        This specific signal is used in MainWindow to update detailed
+        task information, when task selection has changed.
+
+        Args:
+            item (QListItem): Clicked item in list
+        """        
+        self.itemClickedSignal.emit(item.text(),self.column_name)
 
     def startDrag(self, supportedActions):
-        """_summary_
+        """
+        Part of Drag&Drop feature
 
         Args:
             supportedActions (_type_): _description_
@@ -134,28 +161,21 @@ class CustomListWidget(QListWidget):
             task_name = event.mimeData().text()
             source_column = event.mimeData().data(
                 "application/x-kanban-task").data().decode()
-            self.add_task_to_column(task_name, source_column)
+            self.move_task_to_column(task_name, source_column)
             event.acceptProposedAction()
 
-    def add_task_to_column(self, task_name, source_column):
+    def move_task_to_column(self, task_name, source_column):
+        # Add the task to the destination column
         item = QListWidgetItem(task_name)
-        self.addItem(item)
-
+        self.addItem(item) #self is end point (target List Widget) of the drag&drop action
         # Remove the task from the source column's internal data
-        parent_board = self.board
-        task_data = None
-        for task in parent_board.tasks[source_column]:
-            if task.taskname == task_name:
-                task_data = task
+        parent_lane__list_widget = self.board.columns[source_column].list_widget
+        for index in range(parent_lane__list_widget.count()):
+            item = parent_lane__list_widget.item(index)
+            if item.text() == task_name:
+                parent_lane__list_widget.takeItem(index)
+                del item
                 break
-
-        if task_data:
-            parent_board.tasks[source_column].remove(task_data)
-            parent_board.tasks[self.column_name].append(task_data)
-
-        # Zeige Task-Details im Detail-Panel
-        self.board.parent().parent().show_task_details(task_data)
-
 
 class MainWindow(QMainWindow):
     """_summary_
@@ -177,7 +197,8 @@ class MainWindow(QMainWindow):
         self.db_conn = db_conn
         self.projects = {}
         self.current_project = None
-
+        
+        
         self.init_ui()
 
     def init_ui(self):
@@ -221,14 +242,17 @@ class MainWindow(QMainWindow):
         # Kanban-Board
         self.kanban_board = KanbanBoard(self.update_data_model)
         main_area.addWidget(self.kanban_board, 4)
-
-        # Rechte Seite mit Task-Details
+        for col in KanbanBoardColumns:
+            self.kanban_board.columns[col.value].list_widget.itemClickedSignal.connect(self.show_task_details)
+        
+        # right side if GUI with task details
         self.details_panel = QWidget()
         details_layout = QFormLayout()
         self.details_panel.setLayout(details_layout)
 
         self.detail_fields = {
             "Taskname": QLineEdit(),
+            "Description":QTextEdit(),
             "Estimated_Pomos": QLineEdit(),
             "Date_to_Perform": QDateEdit(),
             "Repeat": QComboBox(),
@@ -286,41 +310,39 @@ class MainWindow(QMainWindow):
         del self.projects[project_name]
 
     def switch_project(self, item):
-        #if self.current_project:
-        #    self.save_current_project()
-
         project_name = item.text()
         self.focusme_control.set_current_project(self.focusme_data_model.get_project(item.text()))
         self.current_project = project_name
-        # self.kanban_board.load_tasks(self.projects[project_name])
         self.kanban_board.updated_boards(self.focusme_data_model.get_project(project_name))
 
 
-    def show_task_details(self, task_data):
-        for key, widget in self.detail_fields.items():
-
-            # value = task_data.get(key, "") FIXME
-            value = task_data.taskname
-            if isinstance(widget, QLineEdit):
-                widget.setText(value)
-            elif isinstance(widget, QDateEdit):
-                widget.setDate(value)
-            elif isinstance(widget, QComboBox):
-                index = widget.findText(value)
-                widget.setCurrentIndex(index if index >= 0 else 0)
+    def show_task_details(self, task_name,  assigned_kanban_swimlane):
+        curr_proj = self.focusme_control.get_current_project()
+        self.focusme_data_model.get_project(curr_proj)
+        task_data=curr_proj.get_task(task_name, assigned_kanban_swimlane)
+        self.detail_fields["Taskname"].setText(task_data.taskname)
+        self.detail_fields["Estimated_Pomos"].setText(str(task_data.estimated_pomodoros))
+        self.detail_fields["Date_to_Perform"].setDate(QDate.fromString(task_data.date_to_perform, "dd.MM.yyyy"))
+        index = self.detail_fields["Repeat"].findText(task_data.repeat)
+        self.detail_fields["Repeat"].setCurrentIndex(index if index >= 0 else 0)
+        self.detail_fields["Assigned_to_project"].setText(task_data.assigned_project)
+        self.detail_fields["Description"].setPlainText(task_data.description)
+        
 
     def save_task_details(self):
         # Speichere Task-Änderungen
         pass  # Implementiere Speichern-Logik hier
     
     def update_data_model(self,task):
-        """_This is function is used as a callback function in KanbanBoard in
-        order to update the global data model with new tasks added to the board_
+        """
+        This is function is used as a callback function in KanbanBoard in
+        order to update the global data model with new tasks added to the board
 
         Args:
-            task (_Task_): _Task information from an added task_
-        """       
+            task (Task): Task information from an added task_
+        """
         proj = self.focusme_control.get_current_project()
         task.assigned_project = proj.name
         proj.add_task(task)
         add_task_to_db(self.db_conn, task)
+        

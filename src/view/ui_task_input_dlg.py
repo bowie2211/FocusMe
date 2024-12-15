@@ -2,7 +2,7 @@ from enum import Enum
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox,
-    QDateEdit, QComboBox, QPushButton, QListWidget, QMessageBox, QInputDialog
+    QDateEdit, QComboBox, QPushButton, QListWidget, QMessageBox, QInputDialog, QTextEdit
 )
 from PySide6.QtCore import Qt, QDate
 from model.focusme_model import Task, RepeatEnum
@@ -23,6 +23,12 @@ class TaskInputDialog(QDialog):
         self.taskname_edit = QLineEdit(self)
         self.layout.addWidget(self.taskname_edit)
 
+        # Description
+        self.layout.addWidget(QLabel("Task Description:"))
+        self.description_edit = QTextEdit(self)
+        self.layout.addWidget(self.description_edit)
+
+        
         # Estimated Pomos
         self.layout.addWidget(QLabel("Estimated Pomos:"))
         self.pomos_spinbox = QSpinBox(self)
@@ -83,6 +89,7 @@ class TaskInputDialog(QDialog):
             subtasks = [self.subtasks_list.item(i).text() for i in range(self.subtasks_list.count())]
             return Task(
                 taskname=self.taskname_edit.text().strip(),
+                description=self.description_edit.toPlainText(),
                 estimated_pomodoros=self.pomos_spinbox.value(),
                 date_to_perform=self.date_edit.date().toString("dd.MM.yyyy"),
                 repeat=RepeatEnum(self.repeat_combo.currentText()).value,
