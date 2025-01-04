@@ -53,14 +53,13 @@ autodoc_default_options = {
 autodoc_member_order = 'bysource'
 
 
+
+needs_diagram_template = 'modern'  # Stil für Diagramme
 needs_types = [
-    {
-        "directive": "tutorial-project",
-        "title": "Project",
-        "prefix": "P_",  # prefix for auto-generated IDs
-        "style": "rectangle", # style for the type in diagrams
-        "color": "#BFD8D2", # color for the type in diagrams
-    }
+    {"directive": "req", "title": "Requirement", "prefix": "R_", "color": "#BFD8D2"},
+    {"directive": "spec", "title": "Specification", "prefix": "S_", "color": "#D3F4A9"},
+    {"directive": "test", "title": "Test Case", "prefix": "T_", "color": "#F9EB4C"},
+    {"directive": "needs", "title": "Need", "prefix": "N_", "color": "#F7EB4C"},
 ]
 
 

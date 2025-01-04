@@ -1,9 +1,5 @@
 from enum import Enum
-
-from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox,
-    QDateEdit, QComboBox, QPushButton, QListWidget, QMessageBox, QInputDialog, QTextEdit
-)
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSpinBox, QDateEdit, QComboBox, QPushButton, QListWidget, QInputDialog, QTextEdit
 from PySide6.QtCore import Qt, QDate
 from model.focusme_model import Task, RepeatEnum
 

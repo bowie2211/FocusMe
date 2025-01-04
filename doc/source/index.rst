@@ -23,3 +23,8 @@ documentation for details.
    model
    modules
    tests
+   requirements
+   sequence_diagrams
+
+
+.. include:: code_metadata.rst

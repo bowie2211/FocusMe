@@ -114,26 +114,13 @@ def generate_focusme_data_obj(conn):
 
 def load_project_tasks_from_db(cursor, project_name):
     cursor.execute("""
-        SELECT taskname, description, estimated_pomodoros, performed_pomodoros, 
+        SELECT id, taskname, description, estimated_pomodoros, performed_pomodoros, 
                date_to_perform, repeat, tag, assigned_kanban_swimlane, assigned_project
         FROM Tasks
         WHERE assigned_project = ?;
     """, (project_name ,))
     return cursor.fetchall()
 
-def add_task_to_db(conn, task):
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO Tasks (
-            taskname, description, estimated_pomodoros, performed_pomodoros, 
-            date_to_perform, repeat, assigned_project, assigned_kanban_swimlane, tag
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """, (
-        task.taskname, task.description, task.estimated_pomodoros, 
-        task.performed_pomodoros, task.date_to_perform, task.repeat, 
-        task.assigned_project, task.assigned_kanban_swimlane, task.tag
-    ))
-    conn.commit()
 
 def add_project_to_db(conn, project):
     cursor = conn.cursor()
@@ -206,15 +193,16 @@ def generate_task_obj(task_row):
         _type_: _description_
     """    
     return Task(
-            taskname=task_row[0],
-            description=task_row[1],
-            estimated_pomodoros=task_row[2],
-            performed_pomodoros=task_row[3],
-            date_to_perform=task_row[4],
-            repeat=task_row[5],
-            assigned_project=task_row[8],
-            assigned_kanban_swimlane=task_row[7],
-            tag=task_row[6]
+            id=task_row[0],
+            taskname=task_row[1],
+            description=task_row[2],
+            estimated_pomodoros=task_row[3],
+            performed_pomodoros=task_row[4],
+            date_to_perform=task_row[5],
+            repeat=task_row[6],
+            tag=task_row[7],
+            assigned_kanban_swimlane=task_row[8],
+            assigned_project=task_row[9],
             )
 
 def get_table_schema(conn, table_name):
@@ -224,3 +212,61 @@ def get_table_schema(conn, table_name):
     for row in cursor.fetchall():
         schema.append(row)
     return schema
+
+
+def update_task_in_db(conn, task):
+    """
+    Updates an existing task in the database based on the changes in the Task object.
+
+    Args:
+        conn (sqlite3.Connection): Connection to the database.
+        task (Task): The Task object with updated data.
+    """
+    try:
+        cursor = conn.cursor()
+        # SQL UPDATE statement to modify the fields of the task in the database
+        cursor.execute("""
+            UPDATE Tasks
+            SET
+                taskname = ?, 
+                description = ?, 
+                estimated_pomodoros = ?, 
+                performed_pomodoros = ?, 
+                date_to_perform = ?, 
+                repeat = ?, 
+                assigned_project = ?, 
+                assigned_kanban_swimlane = ?, 
+                tag = ? 
+            WHERE id = ?;
+        """, (
+            task.taskname,               # Task name
+            task.description,            # Task description
+            task.estimated_pomodoros,    # Estimated Pomodoros
+            task.performed_pomodoros,    # Performed Pomodoros
+            task.date_to_perform,        # Date to perform
+            task.repeat,                 # Repeat value
+            task.assigned_project,       # Assigned project ID
+            task.assigned_kanban_swimlane, # Assigned Kanban swimlane
+            task.tag,                    # Tag
+            task.id                      # ID of the task to locate the correct row
+        ))
+        
+        # Commit the changes to the database
+        conn.commit()
+        print(f"Task mit ID {task.id} erfolgreich aktualisiert.")
+    except sqlite3.Error as e:
+        print(f"Fehler beim Aktualisieren der Task: {e}")
+
+def add_task_to_db(conn, task):
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO Tasks (
+            taskname, description, estimated_pomodoros, performed_pomodoros, 
+            date_to_perform, repeat, assigned_project, assigned_kanban_swimlane, tag
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, (
+        task.taskname, task.description, task.estimated_pomodoros, 
+        task.performed_pomodoros, task.date_to_perform, task.repeat, 
+        task.assigned_project, task.assigned_kanban_swimlane, task.tag
+    ))
+    conn.commit()

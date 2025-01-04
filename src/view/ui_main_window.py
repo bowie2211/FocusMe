@@ -1,12 +1,10 @@
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QListWidgetItem, QInputDialog, QLabel,
+from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QListWidgetItem, QInputDialog, QLabel,\
     QLineEdit, QComboBox, QDateEdit, QFormLayout, QMenuBar, QMenu, QTextEdit
-)
 from PySide6.QtCore import Qt, QMimeData, Signal, QDate
 from PySide6.QtGui import QDrag
 from view.ui_task_input_dlg import TaskInputDialog
 from model.focusme_model import Project, KanbanBoardColumns
-from model.focusme_db import add_project_to_db, add_task_to_db
+from model.focusme_db import add_project_to_db, add_task_to_db, update_task_in_db
 
 class KanbanBoard(QWidget):
     """
@@ -194,15 +192,12 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
         self.focusme_data_model = focusme_data_model
         self.focusme_control = focusme_control
-        self.db_conn = db_conn
-        self.projects = {}
-        self.current_project = None
-        
-        
+        self.db_conn = db_conn      
         self.init_ui()
 
     def init_ui(self):
-        """_summary_
+        """
+        Set the FocusMe UI elements (without populating data) 
         """
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
@@ -210,7 +205,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         main_widget.setLayout(layout)
 
-        # Menüleiste
+        # Menu
         menu_bar = QMenuBar()
         file_menu = QMenu("Datei", self)
         menu_bar.addMenu(file_menu)
@@ -218,11 +213,10 @@ class MainWindow(QMainWindow):
         menu_bar.addMenu(edit_menu)
         layout.addWidget(menu_bar)
 
-        # Hauptbereich mit Projekten, Kanban und Task-Details
+        # Main area with project list, kanban and task ui
         main_area = QHBoxLayout()
         layout.addLayout(main_area)
 
-        # Linke Seite mit Projektliste
         project_layout = QVBoxLayout()
 
         self.project_list_q_widget = QListWidget()
@@ -267,13 +261,54 @@ class MainWindow(QMainWindow):
         for key, widget in self.detail_fields.items():
             details_layout.addRow(QLabel(key), widget)
 
-        self.save_task_btn = QPushButton("Änderungen speichern")
+        self.detail_fields["Taskname"].textChanged.connect(self.check_for_changes)
+        self.detail_fields["Description"].textChanged.connect(self.check_for_changes)
+        self.detail_fields["Estimated_Pomos"].textChanged.connect(self.check_for_changes)
+        self.detail_fields["Date_to_Perform"].dateChanged.connect(self.check_for_changes)
+        self.detail_fields["Repeat"].currentIndexChanged.connect(self.check_for_changes) 
+        self.detail_fields["Assigned_to_project"].textChanged.connect(self.check_for_changes)
+        self.detail_fields["Tag"].textChanged.connect(self.check_for_changes)
+        self.detail_fields["Subtasks"].textChanged.connect(self.check_for_changes)
+        
+        """ self.save_task_btn = QPushButton("Änderungen speichern")
         self.save_task_btn.clicked.connect(self.save_task_details)
-        details_layout.addRow(self.save_task_btn)
+        self.save_task_btn.setDisabled(True)
+        details_layout.addRow(self.save_task_btn) """
 
         main_area.addWidget(self.details_panel, 2)
-        self.populate_ui()
+        if self.focusme_control.get_current_project():
+            self.populate_ui()
 
+    def check_for_changes(self):
+        """
+        Checks if one of the edit field of task details has been changed.
+        This mathod is the slot for the "Changed" signals of the ui elements for the 
+        detailed task ui.
+        It is checked it the current content of each the task dtetails edit ui is different to
+        what is currently stored in focusme data model.
+        The check is done by using the sender information.
+        If a difference btw. content of ui element and focusme data model 
+        is detected in any of the editable elements, the informetion from the ui element is
+        pushed to the focusme data model and the save changes pushbotton is activated
+        """
+        sender = self.sender()
+        has_changes = False
+        if sender == self.detail_fields["Taskname"]:
+            has_changes = self.detail_fields["Taskname"].text() != self.focusme_control.get_current_task().taskname
+            if has_changes is True:
+                self.focusme_control.get_current_task().taskname = self.detail_fields["Taskname"].text()
+        if sender == self.detail_fields["Description"]:
+            has_changes = self.detail_fields["Description"].toPlainText() != self.focusme_control.get_current_task().description
+            if has_changes is True:
+                self.focusme_control.get_current_task().description = self.detail_fields["Description"].toPlainText()
+        if sender == self.detail_fields["Repeat"]:     
+            has_changes = self.detail_fields["Repeat"].currentText() != self.focusme_control.get_current_task().repeat
+            if has_changes is True:
+                self.focusme_control.get_current_task().repeat = has_changes = self.detail_fields["Repeat"].currentText()
+        if has_changes is True:
+            update_task_in_db(self.db_conn, self.focusme_control.get_current_task())
+            #self.save_task_btn.setEnabled(has_changes)
+        
     
     def populate_ui(self):
         for project in self.focusme_data_model.projects:
@@ -320,6 +355,7 @@ class MainWindow(QMainWindow):
         curr_proj = self.focusme_control.get_current_project()
         self.focusme_data_model.get_project(curr_proj)
         task_data=curr_proj.get_task(task_name, assigned_kanban_swimlane)
+        self.focusme_control.set_current_task(task_data)
         self.detail_fields["Taskname"].setText(task_data.taskname)
         self.detail_fields["Estimated_Pomos"].setText(str(task_data.estimated_pomodoros))
         self.detail_fields["Date_to_Perform"].setDate(QDate.fromString(task_data.date_to_perform, "dd.MM.yyyy"))
@@ -330,6 +366,7 @@ class MainWindow(QMainWindow):
         
 
     def save_task_details(self):
+        print("Save Data")
         # Speichere Task-Änderungen
         pass  # Implementiere Speichern-Logik hier
     

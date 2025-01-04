@@ -33,33 +33,31 @@ class KanbanBoardColumns(Enum):
     IN_PROGRESS = "In Progress"
     DONE = "DONE"
 
+
 class Task:
     """
     Attributes and methods for dealing with kanban tasks
     """
-    def __init__(self, id=None, taskname="", description="", estimated_pomodoros=0,  \
+    def __init__(self, taskname="", description="", estimated_pomodoros=0,  \
                        performed_pomodoros=0, date_to_perform=None, \
-                       repeat=RepeatEnum.NEVER.value, tag="",\
+                       repeat=RepeatEnum.NEVER.value, assigned_project="", \
                        assigned_kanban_swimlane=KanbanBoardColumns.BACKLOG.value, \
-                       assigned_project="", subtasks=None):
-        
-        self.id = id
+                       tag="", subtasks=None):
         self.taskname = taskname
         self.description = description
         self.estimated_pomodoros = estimated_pomodoros
         self.performed_pomodoros = performed_pomodoros
         self.date_to_perform = date_to_perform
         self.repeat = repeat
-        self.tag = tag
-        self.assigned_kanban_swimlane = assigned_kanban_swimlane
         self.assigned_project = assigned_project
+        self.assigned_kanban_swimlane = assigned_kanban_swimlane
+        self.tag = tag
         self.subtasks = subtasks or []
-        
 
     def __repr__(self):
-        return f"<Task(id={self.id}, taskname={self.taskname}, description={self.description}, estimated_pomodoros={self.estimated_pomodoros}, \
-                       date_to_perform={self.date_to_perform}, repeat={self.repeat}, assigned_kanban_swimlane={self.assigned_kanban_swimlane}, \
-                       tag={self.tag}, assigned_project={self.assigned_project},  subtasks={self.subtasks})>"
+        return f"<Task(taskname={self.taskname}, description={self.description}, estimated_pomodoros={self.estimated_pomodoros}, \
+                       date_to_perform={self.date_to_perform}, repeat={self.repeat}, assigned_project={self.assigned_project}, \
+                       assigned_kanban_swimlane={self.assigned_kanban_swimlane}, tag={self.tag}, subtasks={self.subtasks})>"
 
 
 class Project:
