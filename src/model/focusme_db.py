@@ -1,23 +1,54 @@
+"""
+    This module provides functions to interact with a SQLite database for managing projects, tasks, 
+    and subtasks in the FocusMe application.
+    Functions:
+        initialize_database(conn=None, db_name=None):
+        
+        save_focusme_model_to_db(conn, focusme_model):
+        
+        generate_focusme_data_obj(conn):
+        
+        load_project_tasks_from_db(cursor, project_name):
+            Loads tasks associated with a specific project from the database.
+        
+        add_project_to_db(conn, project) -> int:
+            Adds a project to the database and returns the ID of the newly inserted project.
+        
+        get_project_by_name(conn, project_name):
+            Retrieves a project by its name from the database.
+        
+        generate_project_obj(project_name, tasks_table):
+        
+        generate_task_obj(task_row):
+        
+        get_table_schema(conn, table_name):
+            Retrieves the schema of a specified `table` in the database.
+        
+        update_task_in_db(conn, task):
+        
+        add_task_to_db(conn, task):
+"""
 import sqlite3
 from model.focusme_model import Task, Project, FocusMeData
 
 def initialize_database(conn=None, db_name=None):
-    """_summary_
-
+    """
+    Initializes the database with the required tables: Projects, Tasks, and Subtasks.
+    If a connection object is not provided, it will create a new SQLite connection.
+    If a database name is provided, it will connect to that database; otherwise, 
+    it will use an in-memory database.
     Args:
-        conn (_type_, optional): _description_. Defaults to None.
-        db_name (_type_, optional): _description_. Defaults to None.
-
+        conn (sqlite3.Connection, optional): An existing SQLite connection object. Defaults to None.
+        db_name (str, optional): The name of the SQLite database file. Defaults to None.
     Returns:
-        _type_: _description_
-    """    
+        sqlite3.Connection: The SQLite connection object with the initialized database.
+    """
     if conn is None:
         if db_name:
             conn = sqlite3.connect(db_name)  # Persistente Datenbank
         else:
             conn = sqlite3.connect(":memory:")  # In-Memory-Datenbank
     cursor = conn.cursor()
-    
     # Tabellen erstellen
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS Projects (
@@ -55,6 +86,20 @@ def initialize_database(conn=None, db_name=None):
 
 
 def save_focusme_model_to_db(conn, focusme_model):
+    """
+    Saves the FocusMe model data to the database.
+    Args:
+        conn (sqlite3.Connection): The SQLite database connection object.
+        focusme_model (FocusMeModel): The FocusMe model object containing projects, tasks, and subtasks.
+    The function performs the following operations:
+        1. Iterates over the projects in the focusme_model.
+        2. Inserts each project into the Projects `table`.
+        3. For each project, iterates over the kanban swimlanes and their associated tasks.
+        4. Inserts each task into the Tasks `table`, associating it with the corresponding project and kanban swimlane.
+        5. For each task, iterates over its subtasks and inserts them into the Subtasks `table`, associating them with the corresponding task.
+    The function commits the transaction to the database after all operations are completed.
+    """
+    
     cursor = conn.cursor()
     
     # Projekte speichern
@@ -71,33 +116,37 @@ def save_focusme_model_to_db(conn, focusme_model):
                         date_to_perform, repeat, assigned_project, assigned_kanban_swimlane, tag
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """, (
-                    task.taskname, task.description, task.estimated_pomodoros, task.performed_pomodoros,
-                    task.date_to_perform, task.repeat, project_id, kanban_swimlane, task.tag
+                    task.taskname, task.description, task.estimated_pomodoros,
+                    task.performed_pomodoros,
+                    task.date_to_perform, task.repeat, project_id, kanban_swimlane,
+                    task.tag
                 ))
                 task_id = cursor.lastrowid
-                
                 # Subtasks speichern
                 for subtask in task.subtasks:
-                    cursor.execute("INSERT INTO Subtasks (task_id, subtaskname) VALUES (?, ?);", (task_id, subtask))
-    
+                    cursor.execute("INSERT INTO Subtasks (task_id, subtaskname) VALUES (?, ?);",
+                                   (task_id, subtask))
     conn.commit()
 
 
 def generate_focusme_data_obj(conn):
     """
-    Lädt die Projekte und Tasks aus der SQLite-Datenbank in ein FocusMeData-Objekt.
-    This function is required when th App is started and all data stored in the db
-    has to be loaded into the RAM
+    Generates a FocusMeData object by loading projects and their tasks from the database.
     Args:
-        conn: SQLite-Verbindung.
-
+        conn (sqlite3.Connection): The database connection object.
     Returns:
-        Ein FocusMeData-Objekt, das alle Projekte und Tasks aus der Datenbank enthält.
+        FocusMeData: An object containing all projects and their associated tasks.
+    The function performs the following steps:
+    1. Initializes a FocusMeData object.
+    2. Creates a cursor from the database connection.
+    3. Executes a SQL query to load all projects from the 'Projects' `table`.
+    4. Iterates over each project, loading its tasks and reconstructing the Project object.
+    5. Adds each reconstructed Project object to the FocusMeData object.
     """
     focusme_data = FocusMeData()
     cursor = conn.cursor()
 
-    # Lade alle Projekte aus der Datenbank
+    # Load all projects from the database
     cursor.execute("SELECT id, name FROM Projects;")
     projects = cursor.fetchall()
 
@@ -113,6 +162,24 @@ def generate_focusme_data_obj(conn):
 
 
 def load_project_tasks_from_db(cursor, project_name):
+    """
+    Load `tasks` associated with a specific project from the database.
+    Args:
+        cursor (sqlite3.Cursor): The database cursor to execute the `query`.
+        project_name (str): The name of the project whose tasks are to be loaded.
+    Returns:
+        list of tuple: A list of tuples where each tuple represents a task with the following fields:
+            - id (int): The unique identifier of the task.
+            - taskname (str): The name of the task.
+            - description (str): A description of the task.
+            - estimated_pomodoros (int): The estimated number of pomodoros to complete the task.
+            - performed_pomodoros (int): The number of pomodoros performed on the task.
+            - date_to_perform (str): The date the task is scheduled to be performed.
+            - repeat (str): The repeat schedule of the task.
+            - tag (str): The tag associated with the task.
+            - assigned_kanban_swimlane (str): The kanban swimlane the task is assigned to.
+            - assigned_project (str): The project the task is assigned to.
+    """
     cursor.execute("""
         SELECT id, taskname, description, estimated_pomodoros, performed_pomodoros, 
                date_to_perform, repeat, tag, assigned_kanban_swimlane, assigned_project
@@ -122,7 +189,19 @@ def load_project_tasks_from_db(cursor, project_name):
     return cursor.fetchall()
 
 
-def add_project_to_db(conn, project):
+def add_project_to_db(conn, project) -> int:
+    """
+    Adds a project to the database.
+    
+    Args:
+        conn (sqlite3.Connection): The database connection object.
+        project (Project): The project to insert, with its `name` attribute set.
+        
+    Returns:
+        int: The ID of the newly inserted project.
+    Raises:
+        sqlite3.Error: If an error occurs during the database operation.
+    """
     cursor = conn.cursor()
     try:
         # Transaktion starten
@@ -131,7 +210,6 @@ def add_project_to_db(conn, project):
         # Projekt einfügen
         cursor.execute("INSERT INTO Projects (name) VALUES (?);", (project.name,))
         project_id = cursor.lastrowid
-        # Transaktion abschließen
         conn.commit()
         return project_id
     
@@ -144,14 +222,17 @@ def add_project_to_db(conn, project):
 
 def get_project_by_name(conn, project_name):
     """
-    Ruft ein Projekt und alle zugehörigen Tasks anhand des Projektnamens aus der Datenbank ab.
-    
-    :param conn: SQLite-Verbindung
-    :param project_name: Name des Projekts
-    :return: Ein rekonstruierter Project-Objekt
+    Retrieve a project by its name from the database.
+    Args:
+        conn (sqlite3.Connection): The database connection object.
+        project_name (str): The name of the project to retrieve.
+    Returns:
+        Project: The reconstructed Project object containing the project's details and tasks.
+    Raises:
+        ValueError: If no project with the given name is found.
     """
-    cursor = conn.cursor()
     
+    cursor = conn.cursor()
     # Projekt-ID anhand des Namens abrufen
     cursor.execute("SELECT id FROM Projects WHERE name = ?;", (project_name,))
     result = cursor.fetchone()
@@ -160,22 +241,21 @@ def get_project_by_name(conn, project_name):
         raise ValueError(f"Kein Projekt mit dem Namen '{project_name}' gefunden.")
     
     # get alls tasks of the project
-    tasks_table = load_project_tasks_from_db(cursor, project_name)
+    tasks_table = load_project_tasks_from_db(cursor, result[0])
     # reconstruct Project-Object 
-    project = generate_project_obj(project_name,tasks_table)
+    project = generate_project_obj(project_name, tasks_table)
     return project
 
-
 def generate_project_obj(project_name, tasks_table):
-    """_generates a Project object from a Project name and a SQLite Tasks Table_
-
-    Args:
-        project_name (_string_): _project name_
-        tasks_table (_type_): _result from a Tasks table query_
-
-    Returns:
-        _Project_: _Project opbject with filled kanban tasks_
     """
+    Generates a Project object with tasks.
+    Args:
+        project_name (str): The name of the project.
+        tasks_table (list): A list of task data, where each element represents a task.
+    Returns:
+        Project: An instance of the Project class with tasks added.
+    """
+    
     project = Project(project_name)
     for task_row in tasks_table:
         task = generate_task_obj(task_row)
@@ -184,14 +264,24 @@ def generate_project_obj(project_name, tasks_table):
     return project
 
 def generate_task_obj(task_row):
-    """_generates a Task object from a SQLite Tasks Table_
-
+    """
+    Generates a Task object from a database row.
     Args:
-        task_row (_type_): _result from a Tasks table query_
-
+        task_row (tuple): A tuple containing task data in the following order:
+            - id (int): The unique identifier of the task.
+            - taskname (str): The name of the task.
+            - description (str): A brief description of the task.
+            - estimated_pomodoros (int): The estimated number of pomodoros to complete the task.
+            - performed_pomodoros (int): The number of pomodoros already performed.
+            - date_to_perform (str): The date on which the task is to be performed.
+            - repeat (bool): Indicates if the task is a repeating task.
+            - tag (str): A tag associated with the task.
+            - assigned_kanban_swimlane (str): The kanban swimlane to which the task is assigned.
+            - assigned_project (str): The project to which the task is assigned.
     Returns:
-        _type_: _description_
-    """    
+        Task: An instance of the Task class populated with the provided data.
+    """
+       
     return Task(
             id=task_row[0],
             taskname=task_row[1],
@@ -206,6 +296,16 @@ def generate_task_obj(task_row):
             )
 
 def get_table_schema(conn, table_name):
+    """
+    Retrieve the schema of a specified `table` in the database.
+    Args:
+        conn (sqlite3.Connection): The connection object to the SQLite database.
+        table_name (str): The name of the `table` whose schema is to be retrieved.
+    Returns:
+        list: A list of tuples, where each tuple contains information about a column in the `table`.
+              The information typically includes the column id, name, type, not null flag, default value, and primary key flag.
+    """
+    
     schema = []
     cursor = conn.cursor()
     cursor.execute(f"PRAGMA table_info({table_name});")
@@ -216,12 +316,27 @@ def get_table_schema(conn, table_name):
 
 def update_task_in_db(conn, task):
     """
-    Updates an existing task in the database based on the changes in the Task object.
-
+    Updates an existing task in the database with new values.
     Args:
-        conn (sqlite3.Connection): Connection to the database.
-        task (Task): The Task object with updated data.
+        conn (sqlite3.Connection): The database connection object.
+        task (Task): An object containing the updated task information. 
+                     It should have the following attributes:
+                     - taskname (str): The name of the task.
+                     - description (str): The description of the task.
+                     - estimated_pomodoros (int): The estimated number of Pomodoros.
+                     - performed_pomodoros (int): The number of Pomodoros performed.
+                     - date_to_perform (str): The date to perform the task.
+                     - repeat (str): The repeat value.
+                     - assigned_project (int): The ID of the assigned project.
+                     - assigned_kanban_swimlane (int): The ID of the assigned Kanban swimlane.
+                     - tag (str): The tag associated with the task.
+                     - id (int): The ID of the task to be updated.
+    Returns:
+        None
+    Raises:
+        sqlite3.Error: If an error occurs while updating the task in the database.
     """
+    
     try:
         cursor = conn.cursor()
         # SQL UPDATE statement to modify the fields of the task in the database
@@ -258,6 +373,25 @@ def update_task_in_db(conn, task):
         print(f"Fehler beim Aktualisieren der Task: {e}")
 
 def add_task_to_db(conn, task):
+    """
+    Adds a task to the database.
+    Parameters:
+    conn (sqlite3.Connection): The connection object to the SQLite database.
+    task (Task): An object containing the task details to be added to the database. 
+                 The Task object should have the following attributes:
+                 - taskname (str): The name of the task.
+                 - description (str): A description of the task.
+                 - estimated_pomodoros (int): The estimated number of pomodoros to complete the task.
+                 - performed_pomodoros (int): The number of pomodoros performed so far.
+                 - date_to_perform (str): The date when the task is scheduled to be performed.
+                 - repeat (str): The repeat frequency of the task.
+                 - assigned_project (str): The project to which the task is assigned.
+                 - assigned_kanban_swimlane (str): The kanban swimlane to which the task is assigned.
+                 - tag (str): A tag associated with the task.
+    Returns:
+    None
+    """
+    
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO Tasks (
