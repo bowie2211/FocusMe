@@ -1,9 +1,11 @@
-from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QListWidgetItem, QInputDialog, QLabel,\
-    QLineEdit, QComboBox, QDateEdit, QFormLayout, QMenuBar, QMenu, QTextEdit
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QListWidgetItem, 
+    QInputDialog, QLabel,
+    QLineEdit, QComboBox, QDateEdit, QFormLayout, QMenuBar, QMenu, QTextEdit, QCheckBox
+)
 from PySide6.QtCore import Qt, QMimeData, Signal, QDate
 from PySide6.QtGui import QDrag
-from view.ui_task_input_dlg import TaskInputDialog
-from model.focusme_model import Project, KanbanBoardColumns
+from model.focusme_model import Project, Task, KanbanBoardColumns, RepeatEnum
 from model.focusme_db import add_project_to_db, add_task_to_db, update_task_in_db
 
 class KanbanBoard(QWidget):
@@ -64,16 +66,30 @@ class KanbanBoard(QWidget):
 
     def add_task(self, list_widget, column_name):
         """
-        Opens the input dialoge for adding task information
-
+        Adds a new task to the specified list widget and assigns it to the given kanban swimlane.
         Args:
-            list_widget (CustomListWidget): kanbanboard list widget in which add taks botton was pressed
-            column_name (string): name of kanban column
-        Returns:
-            nothing
+            list_widget (QListWidget): The list widget to which the new task will be added.
+            column_name (str): The name of the kanban swimlane to which the task will be assigned.
+        Creates:
+            Task: A new task with default values and assigns it to the specified kanban swimlane.
+        Side Effects:
+            Adds the new task to the provided list widget and calls the add_task_callback function
+            to handle additional logic for adding the task to the correct project and kanban lane.
         """
-        dialog = TaskInputDialog()
-        task = dialog.get_task(column_name)
+        
+
+        task = Task(
+                id=None,
+                taskname="Enter Taskname",
+                description="Enter Description",
+                estimated_pomodoros=0,
+                date_to_perform="dd.MM.yyyy",
+                repeat=RepeatEnum.NEVER.value,
+                assigned_project="NA",
+                assigned_kanban_swimlane=column_name,
+                tag="",
+                subtasks=[]
+                )
         item = QListWidgetItem(task.taskname)
         item.setData(Qt.UserRole, task)
         list_widget.addItem(item)
@@ -252,7 +268,9 @@ class MainWindow(QMainWindow):
             "Repeat": QComboBox(),
             "Assigned_to_project": QLineEdit(),
             "Tag": QLineEdit(),
-            "Subtasks": QLineEdit(),
+            "Subtasks":QListWidget()
+
+            #"Subtasks": QLineEdit(),
         }
 
         self.detail_fields["Repeat"].addItems(
@@ -261,6 +279,21 @@ class MainWindow(QMainWindow):
         for key, widget in self.detail_fields.items():
             details_layout.addRow(QLabel(key), widget)
 
+        # Subtasks Section
+        add_subtask_btn = QPushButton("Add Subtask")
+        add_subtask_btn.clicked.connect(self.add_subtask)
+        
+        # Füge die Subtasks-Liste und den Button in das Layout ein
+        details_layout.addRow(QLabel("Subtasks"), self.detail_fields["Subtasks"])
+        details_layout.addRow("", add_subtask_btn)  # Leerzeichen als Label
+        
+        #self.subtasks_container = QWidget()
+        #self.subtasks_container_layout = QVBoxLayout()
+        #self.subtasks_container.setLayout(self.subtasks_container_layout)
+        #self.subtasks_layout.addWidget(self.subtasks_container)
+
+        #details_layout.addRow(QLabel("Subtasks"), self.subtasks_layout)
+        
         self.detail_fields["Taskname"].textChanged.connect(self.check_for_changes)
         self.detail_fields["Description"].textChanged.connect(self.check_for_changes)
         self.detail_fields["Estimated_Pomos"].textChanged.connect(self.check_for_changes)
@@ -268,7 +301,7 @@ class MainWindow(QMainWindow):
         self.detail_fields["Repeat"].currentIndexChanged.connect(self.check_for_changes) 
         self.detail_fields["Assigned_to_project"].textChanged.connect(self.check_for_changes)
         self.detail_fields["Tag"].textChanged.connect(self.check_for_changes)
-        self.detail_fields["Subtasks"].textChanged.connect(self.check_for_changes)
+        self.detail_fields["Subtasks"].itemChanged.connect(self.check_for_changes)
         
         """ self.save_task_btn = QPushButton("Änderungen speichern")
         self.save_task_btn.clicked.connect(self.save_task_details)
@@ -282,14 +315,14 @@ class MainWindow(QMainWindow):
     def check_for_changes(self):
         """
         Checks if one of the edit field of task details has been changed.
-        This mathod is the slot for the "Changed" signals of the ui elements for the 
+        This method is the slot for the "Changed" signals of the ui elements for the 
         detailed task ui.
-        It is checked it the current content of each the task dtetails edit ui is different to
+        It is checked if the current content of each the task dtetails edit ui is different to
         what is currently stored in focusme data model.
         The check is done by using the sender information.
         If a difference btw. content of ui element and focusme data model 
         is detected in any of the editable elements, the informetion from the ui element is
-        pushed to the focusme data model and the save changes pushbotton is activated
+        pushed to the focusme data model and directly to the database.
         """
         sender = self.sender()
         has_changes = False
@@ -297,20 +330,55 @@ class MainWindow(QMainWindow):
             has_changes = self.detail_fields["Taskname"].text() != self.focusme_control.get_current_task().taskname
             if has_changes is True:
                 self.focusme_control.get_current_task().taskname = self.detail_fields["Taskname"].text()
+                self.kanban_board.updated_boards(self.focusme_control.get_current_project())
+ 
         if sender == self.detail_fields["Description"]:
             has_changes = self.detail_fields["Description"].toPlainText() != self.focusme_control.get_current_task().description
             if has_changes is True:
                 self.focusme_control.get_current_task().description = self.detail_fields["Description"].toPlainText()
+ 
+        if sender == self.detail_fields["Estimated_Pomos"]:
+            has_changes = self.detail_fields["Estimated_Pomos"].text() != str(self.focusme_control.get_current_task().estimated_pomodoros)
+            if has_changes is True:
+                self.focusme_control.get_current_task().estimated_pomodoros = int(self.detail_fields["Estimated_Pomos"].text())
+                
+        if sender == self.detail_fields["Date_to_Perform"]:
+            has_changes = self.detail_fields["Date_to_Perform"].date().toString("dd.MM.yyyy") != self.focusme_control.get_current_task().date_to_perform
+            if has_changes is True:
+                self.focusme_control.get_current_task().date_to_perform = self.detail_fields["Date_to_Perform"].date().toString("dd.MM.yyyy")
+        
         if sender == self.detail_fields["Repeat"]:     
             has_changes = self.detail_fields["Repeat"].currentText() != self.focusme_control.get_current_task().repeat
             if has_changes is True:
                 self.focusme_control.get_current_task().repeat = has_changes = self.detail_fields["Repeat"].currentText()
+ 
+        if sender == self.detail_fields["Assigned_to_project"]:
+            has_changes = self.detail_fields["Assigned_to_project"].text() != self.focusme_control.get_current_task().assigned_project
+            if has_changes is True:
+                self.focusme_control.get_current_task().assigned_project = self.detail_fields["Assigned_to_project"].text()
+        
+        if sender == self.detail_fields["Tag"]:
+            has_changes = self.detail_fields["Tag"].text() != self.focusme_control.get_current_task().tag
+            if has_changes is True:
+                self.focusme_control.get_current_task().tag = self.detail_fields["Tag"].text()
+        
+        if sender == self.detail_fields["Subtasks"]:
+            print("Subtask changed")
+        
         if has_changes is True:
             update_task_in_db(self.db_conn, self.focusme_control.get_current_task())
-            #self.save_task_btn.setEnabled(has_changes)
-        
-    
+
     def populate_ui(self):
+        """
+        Populates the UI with the list of projects and sets the focus on the current project.
+        This method performs the following actions:
+        1. Iterates through the projects in the focusme_data_model and adds each project's name to the project_list_q_widget.
+        2. Sets the focus on the current project in the project_list_q_widget.
+        3. Updates the kanban board with the current project's data.
+        Returns:
+            None
+        """
+        
         for project in self.focusme_data_model.projects:
 
             self.project_list_q_widget.addItem(project.name)
@@ -382,4 +450,54 @@ class MainWindow(QMainWindow):
         task.assigned_project = proj.name
         proj.add_task(task)
         add_task_to_db(self.db_conn, task)
+        self.show_task_details(task.taskname, task.assigned_kanban_swimlane)
+
+
+    
         
+    def add_subtask(self):
+        """
+        Fügt einen neuen Subtask zur Liste hinzu.
+        """
+        # Neues benutzerdefiniertes Widget für den Subtask
+        subtask_widget = QWidget()
+        subtask_layout = QHBoxLayout(subtask_widget)
+        subtask_layout.setContentsMargins(0, 0, 0, 0)  # Entfernt unnötige Ränder
+
+        # Checkbox und editierbares Textfeld
+        checkbox = QCheckBox()
+        text_edit = QLineEdit()
+        text_edit.setPlaceholderText("Enter subtask name...")
+
+        # Füge Checkbox und Textfeld zum Layout hinzu
+        subtask_layout.addWidget(checkbox)
+        subtask_layout.addWidget(text_edit)
+
+        # Überwache Änderungen
+        checkbox.stateChanged.connect(self.subtask_on_checkbox_changed)
+        text_edit.textChanged.connect(self.subtask_on_text_changed)
+
+        
+        # Neues Listenelement für die Subtask-Liste
+        list_item = QListWidgetItem(self.detail_fields["Subtasks"])
+        self.detail_fields["Subtasks"].addItem(list_item)
+
+        # Setze das benutzerdefinierte Widget als Inhalt des Listenelements
+        list_item.setSizeHint(subtask_widget.sizeHint())
+        self.detail_fields["Subtasks"].setItemWidget(list_item, subtask_widget)
+
+    def subtask_on_checkbox_changed(self, state):
+        """
+        Wird aufgerufen, wenn der Status der Checkbox geändert wird.
+        """
+        checkbox = self.sender()
+        list_item = self.detail_fields["Subtasks"].itemAt(checkbox.pos())
+        print(f"Checkbox changed at position {checkbox.pos()}")
+    
+    def subtask_on_text_changed(self, text):
+        """
+        Wird aufgerufen, wenn der Text des Subtasks geändert wird.
+        """
+        text_edit = self.sender()
+        list_item = self.detail_fields["Subtasks"].itemAt(text_edit.pos())
+        print(f"Text changed at position {text_edit.pos()}")
