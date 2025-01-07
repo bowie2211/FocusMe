@@ -76,7 +76,8 @@ def initialize_database(conn=None, db_name=None):
         CREATE TABLE IF NOT EXISTS Subtasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             task_id INTEGER NOT NULL,
-            subtaskname TEXT NOT NULL,
+            description TEXT NOT NULL,
+            status INTEGER DEFAULT 0,
             FOREIGN KEY (task_id) REFERENCES Tasks (id)
         );
     """)
@@ -403,4 +404,30 @@ def add_task_to_db(conn, task):
         task.performed_pomodoros, task.date_to_perform, task.repeat, 
         task.assigned_project, task.assigned_kanban_swimlane, task.tag
     ))
+    conn.commit()
+
+
+
+def add_subtask_to_db(conn, subtask):
+    """
+    Adds a subtask to the database.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO Subtasks (task_id, description, status) 
+        VALUES (?, ?, ?);
+    """, (subtask.task_id, subtask.description, subtask.status))
+    conn.commit()
+    subtask.id = cursor.lastrowid
+    
+def update_subtask_in_db(conn, subtask):
+    """
+    Updates a subtask in the database.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE Subtasks
+        SET description = ?, status = ?
+        WHERE id = ?;
+    """, (subtask.description, subtask.status, subtask.id))
     conn.commit()

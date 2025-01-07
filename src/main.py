@@ -9,7 +9,7 @@ def main():
     """_summary_
     """
     # initialize database
-    db_conn=initialize_database(db_name="focusme3.db")
+    db_conn=initialize_database(db_name="focusme4.db")
     
     focusme_data = generate_focusme_data_obj(db_conn)
     focusme_control = FocusMeControl()

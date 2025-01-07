@@ -5,8 +5,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QMimeData, Signal, QDate
 from PySide6.QtGui import QDrag
-from model.focusme_model import Project, Task, KanbanBoardColumns, RepeatEnum
-from model.focusme_db import add_project_to_db, add_task_to_db, update_task_in_db
+from model.focusme_model import Project, Task, Subtask, KanbanBoardColumns, RepeatEnum
+from model.focusme_db import add_project_to_db, add_task_to_db, update_task_in_db, add_subtask_to_db, update_subtask_in_db
 
 class KanbanBoard(QWidget):
     """
@@ -281,18 +281,12 @@ class MainWindow(QMainWindow):
 
         # Subtasks Section
         add_subtask_btn = QPushButton("Add Subtask")
-        add_subtask_btn.clicked.connect(self.add_subtask)
-        
+        #add_subtask_btn.clicked.connect(self.add_subtask)
+        add_subtask_btn.clicked.connect(lambda: self.add_subtask("Type in Description", False))
+
         # Füge die Subtasks-Liste und den Button in das Layout ein
         details_layout.addRow(QLabel("Subtasks"), self.detail_fields["Subtasks"])
         details_layout.addRow("", add_subtask_btn)  # Leerzeichen als Label
-        
-        #self.subtasks_container = QWidget()
-        #self.subtasks_container_layout = QVBoxLayout()
-        #self.subtasks_container.setLayout(self.subtasks_container_layout)
-        #self.subtasks_layout.addWidget(self.subtasks_container)
-
-        #details_layout.addRow(QLabel("Subtasks"), self.subtasks_layout)
         
         self.detail_fields["Taskname"].textChanged.connect(self.check_for_changes)
         self.detail_fields["Description"].textChanged.connect(self.check_for_changes)
@@ -302,12 +296,6 @@ class MainWindow(QMainWindow):
         self.detail_fields["Assigned_to_project"].textChanged.connect(self.check_for_changes)
         self.detail_fields["Tag"].textChanged.connect(self.check_for_changes)
         self.detail_fields["Subtasks"].itemChanged.connect(self.check_for_changes)
-        
-        """ self.save_task_btn = QPushButton("Änderungen speichern")
-        self.save_task_btn.clicked.connect(self.save_task_details)
-        self.save_task_btn.setDisabled(True)
-        details_layout.addRow(self.save_task_btn) """
-
         main_area.addWidget(self.details_panel, 2)
         if self.focusme_control.get_current_project():
             self.populate_ui()
@@ -380,7 +368,6 @@ class MainWindow(QMainWindow):
         """
         
         for project in self.focusme_data_model.projects:
-
             self.project_list_q_widget.addItem(project.name)
         #set focus on current project
         for index in range(self.project_list_q_widget.count()):
@@ -389,6 +376,7 @@ class MainWindow(QMainWindow):
                 self.project_list_q_widget.setCurrentItem(item)
                 self.project_list_q_widget.setFocus()
         self.kanban_board.updated_boards(self.focusme_control.get_current_project())
+        self.show_task_details(self.focusme_control.get_current_task().taskname, self.focusme_control.get_current_task().assigned_kanban_swimlane)
     
     def add_project(self):
         project_name, ok = QInputDialog.getText(
@@ -415,7 +403,7 @@ class MainWindow(QMainWindow):
     def switch_project(self, item):
         project_name = item.text()
         self.focusme_control.set_current_project(self.focusme_data_model.get_project(item.text()))
-        self.current_project = project_name
+        #self.current_project = project_name
         self.kanban_board.updated_boards(self.focusme_data_model.get_project(project_name))
 
 
@@ -432,6 +420,10 @@ class MainWindow(QMainWindow):
         self.detail_fields["Assigned_to_project"].setText(task_data.assigned_project)
         self.detail_fields["Description"].setPlainText(task_data.description)
         
+        self.detail_fields["Subtasks"].clear()
+        for subtask in task_data.subtasks:
+            self.add_subtask_to_ui(subtask)
+
 
     def save_task_details(self):
         print("Save Data")
@@ -451,32 +443,22 @@ class MainWindow(QMainWindow):
         proj.add_task(task)
         add_task_to_db(self.db_conn, task)
         self.show_task_details(task.taskname, task.assigned_kanban_swimlane)
-
-
-    
-        
-    def add_subtask(self):
-        """
-        Fügt einen neuen Subtask zur Liste hinzu.
-        """
-        # Neues benutzerdefiniertes Widget für den Subtask
+ 
+    def add_subtask_to_ui(self, subtask):
+         # Neues benutzerdefiniertes Widget für den Subtask
         subtask_widget = QWidget()
         subtask_layout = QHBoxLayout(subtask_widget)
         subtask_layout.setContentsMargins(0, 0, 0, 0)  # Entfernt unnötige Ränder
 
         # Checkbox und editierbares Textfeld
         checkbox = QCheckBox()
+        checkbox.setChecked(subtask.status)
         text_edit = QLineEdit()
-        text_edit.setPlaceholderText("Enter subtask name...")
+        text_edit.setPlaceholderText(subtask.description)
 
         # Füge Checkbox und Textfeld zum Layout hinzu
         subtask_layout.addWidget(checkbox)
         subtask_layout.addWidget(text_edit)
-
-        # Überwache Änderungen
-        checkbox.stateChanged.connect(self.subtask_on_checkbox_changed)
-        text_edit.textChanged.connect(self.subtask_on_text_changed)
-
         
         # Neues Listenelement für die Subtask-Liste
         list_item = QListWidgetItem(self.detail_fields["Subtasks"])
@@ -485,19 +467,41 @@ class MainWindow(QMainWindow):
         # Setze das benutzerdefinierte Widget als Inhalt des Listenelements
         list_item.setSizeHint(subtask_widget.sizeHint())
         self.detail_fields["Subtasks"].setItemWidget(list_item, subtask_widget)
-
-    def subtask_on_checkbox_changed(self, state):
-        """
-        Wird aufgerufen, wenn der Status der Checkbox geändert wird.
-        """
-        checkbox = self.sender()
-        list_item = self.detail_fields["Subtasks"].itemAt(checkbox.pos())
-        print(f"Checkbox changed at position {checkbox.pos()}")
+        #adds a reference to the subtask object to the list item for later access
+        list_item.setData(Qt.UserRole, subtask)
+        checkbox.stateChanged.connect(lambda state, s=subtask: self.update_subtask_status(s, state))
+        text_edit.textChanged.connect(lambda text, s=subtask: self.update_subtask_description(s, text))
     
-    def subtask_on_text_changed(self, text):
+    def add_subtask(self, subtask_description="Enter subtask name...", subtask_status=False):
         """
-        Wird aufgerufen, wenn der Text des Subtasks geändert wird.
+        Adds a new subtask to the current task.
+        Args:
+            subtask_description (str, optional): The description of the subtask. Defaults to "Enter subtask name...".
+            subtask_status (bool, optional): The status of the subtask. Defaults to False.
+        Returns:
+            None
         """
-        text_edit = self.sender()
-        list_item = self.detail_fields["Subtasks"].itemAt(text_edit.pos())
-        print(f"Text changed at position {text_edit.pos()}")
+        
+        subtask = Subtask(id=None, task_id=self.focusme_control.get_current_task().id,
+                          description=subtask_description, status=subtask_status)
+        add_subtask_to_db(self.db_conn, subtask)
+        self.focusme_control.get_current_task().add_subtask(subtask)
+        self.add_subtask_to_ui(subtask)
+    
+    def update_subtask_status(self, subtask, state):
+        """
+        Aktualisiert den Status des Subtasks, wenn die Checkbox geändert wird.
+        """
+        subtask.status = state == Qt.Checked.value
+        self.focusme_control.get_current_task().update_subtask(subtask)
+        update_subtask_in_db(self.db_conn, subtask)
+        print(f"Updated Subtask Status: {subtask.description} -> {subtask.status}")
+
+    def update_subtask_description(self, subtask, text):
+        """
+        Aktualisiert die Beschreibung des Subtasks, wenn der Text im LineEdit geändert wird.
+        """
+        subtask.description = text
+        self.focusme_control.get_current_task().update_subtask(subtask)
+        update_subtask_in_db(self.db_conn, subtask)
+        print(f"Updated Subtask Description: {subtask.description}")

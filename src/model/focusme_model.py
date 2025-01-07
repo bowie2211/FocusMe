@@ -61,6 +61,40 @@ class Task:
                        date_to_perform={self.date_to_perform}, repeat={self.repeat}, assigned_kanban_swimlane={self.assigned_kanban_swimlane}, \
                        tag={self.tag}, assigned_project={self.assigned_project},  subtasks={self.subtasks})>"
 
+    def add_subtask(self, subtask):
+        """
+        Adds a subtask to the task object
+        
+        Args:
+            subtask (Subtask): Subtask object that has to be added to the task object.
+
+        Returns:
+            nothing
+        """
+        self.subtasks.append(subtask)
+    
+    def update_subtask(self, subtask):
+        """
+        Updates a subtask in the task object
+        
+        Args:
+            subtask (Subtask): Subtask object that has to be updated in the task object.
+
+        Returns:
+            nothing
+        """
+        for i, st in enumerate(self.subtasks):
+            if st.id == subtask.id:
+                self.subtasks[i] = subtask
+                break
+
+class Subtask:
+    def __init__(self, id=None, task_id=None, description="", status=0):
+        self.id = id
+        self.task_id = task_id
+        self.description = description
+        self.status = status
+
 
 class Project:
     """
