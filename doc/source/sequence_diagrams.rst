@@ -52,3 +52,62 @@ Initialize GUI
    MainWindow -> MainWindow: init_ui
    MainWindow --> main: window
    @enduml
+
+
+
+get_project_by_name
+###################  
+
+.. plantuml::
+
+   @startuml
+
+title Sequenzdiagramm für get_project_by_name
+
+actor User
+participant focusme_db.py
+participant SqliteDB as DB
+participant "load_project_tasks_from_db" as LoadTasks
+participant "generate_project_obj" as GenerateProject
+participant "generate_task_obj" as GenerateTask
+
+User -> focusme_db.py: get_project_by_name(project_name)
+activate focusme_db.py
+
+focusme_db.py -> DB: SELECT project_name
+DB --> focusme_db.py: project_name
+
+focusme_db.py -> LoadTasks: load_project_tasks_from_db(project_name, db_ref)
+activate LoadTasks
+
+LoadTasks -> DB: SELECT tasks WHERE project_name=project_name
+DB --> LoadTasks: tasks_list
+LoadTasks --> focusme_db.py: tasks_list
+
+deactivate LoadTasks
+
+focusme_db.py -> GenerateProject: generate_project_obj(project_name, tasks_list)
+activate GenerateProject
+
+GenerateProject -> GenerateTask: generate_task_obj(task)
+activate GenerateTask
+
+GenerateTask -> DB: SELECT subtasks WHERE task_id=task_id
+DB --> GenerateTask: subtasks_list
+GenerateTask --> GenerateProject: Task object with Subtask objects
+
+deactivate GenerateTask
+
+loop For each task in tasks_list
+GenerateProject -> GenerateTask: generate_task_obj(task)
+end
+
+GenerateProject --> focusme_db.py: Project object
+
+deactivate GenerateProject
+
+focusme_db.py --> User: Project object
+
+deactivate focusme_db.py
+
+@enduml

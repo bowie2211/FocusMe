@@ -100,10 +100,10 @@ class Project:
     """
     Attributes and methods for dealing with projects tasks that are organized as kanban tasks
     """
-    def __init__(self, name=""):
+    def __init__(self,  name="", db_id=None):
         self.tasks = {KanbanBoardColumns.BACKLOG.value: [
         ], KanbanBoardColumns.IN_PROGRESS.value: [], KanbanBoardColumns.DONE.value: []}
-
+        self.id = db_id
         self.name = name
 
     def add_task(self, task):

@@ -29,7 +29,7 @@
         add_task_to_db(conn, task):
 """
 import sqlite3
-from model.focusme_model import Task, Project, FocusMeData
+from model.focusme_model import Task, Subtask, Project, FocusMeData
 
 def initialize_database(conn=None, db_name=None):
     """
@@ -153,20 +153,46 @@ def generate_focusme_data_obj(conn):
 
     for project_id, project_name in projects:
         # get alls tasks of the project
-        tasks_table = load_project_tasks_from_db(cursor, project_name)
+        tasks_table = select_task_table(conn, project_name)
         # reconstruct Project-Object
-        project = generate_project_obj(project_name,tasks_table)
+        project = generate_project_obj(conn,project_name,tasks_table)
         # Füge das Projekt zu FocusMeData hinzu
         focusme_data.add_project(project)
 
     return focusme_data
 
+def select_project_table(conn, project_name):
+    """
+    Retrieve a project by its name from the database.
+    Args:
+        conn (sqlite3.Connection): The database connection object.
+        project_name (str): The name of the project to retrieve.
+    Returns:
+        Project: The reconstructed Project object containing the project's details and tasks.
+    Raises:
+        ValueError: If no project with the given name is found.
+    """
+    
+    cursor = conn.cursor()
+    # Projekt-ID anhand des Namens abrufen
+    cursor.execute("SELECT id FROM Projects WHERE name = ?;", (project_name,))
+    result = cursor.fetchone()
+    
+    if not result:
+        raise ValueError(f"Kein Projekt mit dem Namen '{project_name}' gefunden.")
+    
+    # get alls tasks of the project
+    tasks_table = select_task_table(conn, project_name) #FIXME Project_name is not unique, use project id
+    # reconstruct Project-Object 
+    project = generate_project_obj(conn, project_name, tasks_table)
+    return project
 
-def load_project_tasks_from_db(cursor, project_name):
+
+def select_task_table(conn, project_name):
     """
     Load `tasks` associated with a specific project from the database.
     Args:
-        cursor (sqlite3.Cursor): The database cursor to execute the `query`.
+        conn (sqlite3.Connection): The database connection object.
         project_name (str): The name of the project whose tasks are to be loaded.
     Returns:
         list of tuple: A list of tuples where each tuple represents a task with the following fields:
@@ -181,13 +207,39 @@ def load_project_tasks_from_db(cursor, project_name):
             - assigned_kanban_swimlane (str): The kanban swimlane the task is assigned to.
             - assigned_project (str): The project the task is assigned to.
     """
-    cursor.execute("""
-        SELECT id, taskname, description, estimated_pomodoros, performed_pomodoros, 
-               date_to_perform, repeat, tag, assigned_kanban_swimlane, assigned_project
-        FROM Tasks
-        WHERE assigned_project = ?;
-    """, (project_name ,))
+    cursor = conn.cursor()
+
+    
+    try:
+        cursor.execute("""
+            SELECT id, taskname, description, estimated_pomodoros, performed_pomodoros, 
+                   date_to_perform, repeat, tag, assigned_kanban_swimlane, assigned_project
+            FROM Tasks
+            WHERE assigned_project = ?;
+        """, (project_name,))
+    except sqlite3.Error as e:
+        print(f"Fehler beim Laden der Aufgaben für das Projekt '{project_name}': {e}")
+        return []
+    task_table = cursor.fetchall()
+    return task_table
+
+
+
+
+def select_subtask_table(conn, task_id):
+    """
+    Loads subtasks for a given task from the database.
+    Args:
+        conn (sqlite3.Connection): The database connection object.
+        task_id (int): The ID of the task whose subtasks are to be loaded.
+    Returns:
+        list: A list of subtasks associated with the given task.
+    """
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, description, status FROM Subtasks WHERE task_id = ?;", (task_id,))
     return cursor.fetchall()
+
+
 
 
 def add_project_to_db(conn, project) -> int:
@@ -210,9 +262,9 @@ def add_project_to_db(conn, project) -> int:
 
         # Projekt einfügen
         cursor.execute("INSERT INTO Projects (name) VALUES (?);", (project.name,))
-        project_id = cursor.lastrowid
+        project.id = cursor.lastrowid
         conn.commit()
-        return project_id
+        return project.id
     
     except sqlite3.Error as e:
         # Bei Fehler: Rollback und Fehler ausgeben
@@ -220,8 +272,7 @@ def add_project_to_db(conn, project) -> int:
         print(f"Fehler beim Speichern des Projekts: {e}")
         raise
 
-
-def get_project_by_name(conn, project_name):
+def select_project_table_target(conn, project_id):
     """
     Retrieve a project by its name from the database.
     Args:
@@ -235,19 +286,17 @@ def get_project_by_name(conn, project_name):
     
     cursor = conn.cursor()
     # Projekt-ID anhand des Namens abrufen
-    cursor.execute("SELECT id FROM Projects WHERE name = ?;", (project_name,))
+    
+    cursor.execute(""" SELECT name, id FROM Projects WHERE id = ?;""", (project_id ,))
+    
     result = cursor.fetchone()
     
     if not result:
-        raise ValueError(f"Kein Projekt mit dem Namen '{project_name}' gefunden.")
+        raise ValueError(f"Kein Projekt mit dem Namen '{project_id}' gefunden.")
     
-    # get alls tasks of the project
-    tasks_table = load_project_tasks_from_db(cursor, result[0])
-    # reconstruct Project-Object 
-    project = generate_project_obj(project_name, tasks_table)
-    return project
+    return result
 
-def generate_project_obj(project_name, tasks_table):
+def generate_project_obj(conn, project_name, tasks_table):
     """
     Generates a Project object with tasks.
     Args:
@@ -259,12 +308,19 @@ def generate_project_obj(project_name, tasks_table):
     
     project = Project(project_name)
     for task_row in tasks_table:
-        task = generate_task_obj(task_row)
+        task = generate_task_obj(conn, task_row)
         project.add_task(task)
     
     return project
 
-def generate_task_obj(task_row):
+def generate_project_obj_2(project_table, tasks_table, subtask_table):
+    project = Project(project_table[0], project_table[1])
+    for task_row in tasks_table:
+        task = generate_task_obj_2(task_row, subtask_table)
+        project.add_task(task)
+    return project
+
+def generate_task_obj_2(task_row, subtask_table):
     """
     Generates a Task object from a database row.
     Args:
@@ -282,8 +338,7 @@ def generate_task_obj(task_row):
     Returns:
         Task: An instance of the Task class populated with the provided data.
     """
-       
-    return Task(
+    task = Task(
             id=task_row[0],
             taskname=task_row[1],
             description=task_row[2],
@@ -295,6 +350,58 @@ def generate_task_obj(task_row):
             assigned_kanban_swimlane=task_row[8],
             assigned_project=task_row[9],
             )
+    for subtask_row in subtask_table:
+        subtask = Subtask(
+            id=subtask_row[0],
+            task_id=task.id,
+            description=subtask_row[1],
+            status=subtask_row[2]
+        )
+        task.add_subtask(subtask)
+    
+    return task
+
+def generate_task_obj(conn, task_row):
+    """
+    Generates a Task object from a database row.
+    Args:
+        task_row (tuple): A tuple containing task data in the following order:
+            - id (int): The unique identifier of the task.
+            - taskname (str): The name of the task.
+            - description (str): A brief description of the task.
+            - estimated_pomodoros (int): The estimated number of pomodoros to complete the task.
+            - performed_pomodoros (int): The number of pomodoros already performed.
+            - date_to_perform (str): The date on which the task is to be performed.
+            - repeat (bool): Indicates if the task is a repeating task.
+            - tag (str): A tag associated with the task.
+            - assigned_kanban_swimlane (str): The kanban swimlane to which the task is assigned.
+            - assigned_project (str): The project to which the task is assigned.
+    Returns:
+        Task: An instance of the Task class populated with the provided data.
+    """
+    subtask_rows = select_subtask_table(conn, task_row[0])
+    task = Task(
+            id=task_row[0],
+            taskname=task_row[1],
+            description=task_row[2],
+            estimated_pomodoros=task_row[3],
+            performed_pomodoros=task_row[4],
+            date_to_perform=task_row[5],
+            repeat=task_row[6],
+            tag=task_row[7],
+            assigned_kanban_swimlane=task_row[8],
+            assigned_project=task_row[9],
+            )
+    for subtask_row in subtask_rows:
+        subtask = Subtask(
+            id=subtask_row[0],
+            task_id=task.id,
+            description=subtask_row[1],
+            status=subtask_row[2]
+        )
+        task.add_subtask(subtask)
+    
+    return task
 
 def get_table_schema(conn, table_name):
     """
@@ -380,6 +487,7 @@ def add_task_to_db(conn, task):
     conn (sqlite3.Connection): The connection object to the SQLite database.
     task (Task): An object containing the task details to be added to the database. 
                  The Task object should have the following attributes:
+                 - id (int): The unique identifier of the task is filled after db insertion
                  - taskname (str): The name of the task.
                  - description (str): A description of the task.
                  - estimated_pomodoros (int): The estimated number of pomodoros to complete the task.
@@ -390,7 +498,7 @@ def add_task_to_db(conn, task):
                  - assigned_kanban_swimlane (str): The kanban swimlane to which the task is assigned.
                  - tag (str): A tag associated with the task.
     Returns:
-    None
+    int: The ID of the newly inserted task.
     """
     
     cursor = conn.cursor()
@@ -404,14 +512,28 @@ def add_task_to_db(conn, task):
         task.performed_pomodoros, task.date_to_perform, task.repeat, 
         task.assigned_project, task.assigned_kanban_swimlane, task.tag
     ))
+    
+    for subtask in task.subtasks:
+        add_subtask_to_db(conn, subtask)
+    
     conn.commit()
+    task.id = cursor.lastrowid
+    return task.id
 
 
 
 def add_subtask_to_db(conn, subtask):
     """
     Adds a subtask to the database.
+    Args:
+        conn (sqlite3.Connection): The database connection object.
+        subtask (Subtask): The subtask object to be added, which should have 
+                           the attributes 'task_id', 'description', and 'status'.
+        id (int): The unique identifier of the task is filled after db insertion
+    Returns:
+        int: The ID of the newly inserted subtask.
     """
+
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO Subtasks (task_id, description, status) 
@@ -419,6 +541,7 @@ def add_subtask_to_db(conn, subtask):
     """, (subtask.task_id, subtask.description, subtask.status))
     conn.commit()
     subtask.id = cursor.lastrowid
+    return subtask.id
     
 def update_subtask_in_db(conn, subtask):
     """
