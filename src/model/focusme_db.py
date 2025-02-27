@@ -76,15 +76,16 @@ def initialize_database(conn=None, db_name=None):
         CREATE TABLE IF NOT EXISTS Subtasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             task_id INTEGER NOT NULL,
+            project_id INTEGER NOT NULL,
             description TEXT NOT NULL,
             status INTEGER DEFAULT 0,
             FOREIGN KEY (task_id) REFERENCES Tasks (id)
+            FOREIGN KEY (project_id) REFERENCES Projects (id)
         );
     """)
     
     conn.commit()
     return conn
-
 
 def save_focusme_model_to_db(conn, focusme_model):
     """
@@ -150,42 +151,44 @@ def generate_focusme_data_obj(conn):
     # Load all projects from the database
     cursor.execute("SELECT id, name FROM Projects;")
     projects = cursor.fetchall()
-
+    
     for project_id, project_name in projects:
+        project_table = select_project_table(conn, project_id)
         # get alls tasks of the project
         tasks_table = select_task_table(conn, project_name)
+        subtask_table= select_subtask_table(conn, project_id)
         # reconstruct Project-Object
-        project = generate_project_obj(conn,project_name,tasks_table)
+        project = generate_project_obj(project_table, tasks_table, subtask_table)
         # Füge das Projekt zu FocusMeData hinzu
         focusme_data.add_project(project)
 
     return focusme_data
 
-def select_project_table(conn, project_name):
-    """
-    Retrieve a project by its name from the database.
-    Args:
-        conn (sqlite3.Connection): The database connection object.
-        project_name (str): The name of the project to retrieve.
-    Returns:
-        Project: The reconstructed Project object containing the project's details and tasks.
-    Raises:
-        ValueError: If no project with the given name is found.
-    """
+# def select_project_table(conn, project_name):
+#     """
+#     Retrieve a project by its name from the database.
+#     Args:
+#         conn (sqlite3.Connection): The database connection object.
+#         project_name (str): The name of the project to retrieve.
+#     Returns:
+#         Project: The reconstructed Project object containing the project's details and tasks.
+#     Raises:
+#         ValueError: If no project with the given name is found.
+#     """
     
-    cursor = conn.cursor()
-    # Projekt-ID anhand des Namens abrufen
-    cursor.execute("SELECT id FROM Projects WHERE name = ?;", (project_name,))
-    result = cursor.fetchone()
+#     cursor = conn.cursor()
+#     # Projekt-ID anhand des Namens abrufen
+#     cursor.execute("SELECT id FROM Projects WHERE name = ?;", (project_name,))
+#     result = cursor.fetchone()
     
-    if not result:
-        raise ValueError(f"Kein Projekt mit dem Namen '{project_name}' gefunden.")
+#     if not result:
+#         raise ValueError(f"Kein Projekt mit dem Namen '{project_name}' gefunden.")
     
-    # get alls tasks of the project
-    tasks_table = select_task_table(conn, project_name) #FIXME Project_name is not unique, use project id
-    # reconstruct Project-Object 
-    project = generate_project_obj(conn, project_name, tasks_table)
-    return project
+#     # get alls tasks of the project
+#     tasks_table = select_task_table(conn, project_name) #FIXME Project_name is not unique, use project id
+#     # reconstruct Project-Object 
+#     project = generate_project_obj(conn, project_name, tasks_table)
+#     return project
 
 
 def select_task_table(conn, project_name):
@@ -272,7 +275,7 @@ def add_project_to_db(conn, project) -> int:
         print(f"Fehler beim Speichern des Projekts: {e}")
         raise
 
-def select_project_table_target(conn, project_id):
+def select_project_table(conn, project_id):
     """
     Retrieve a project by its name from the database.
     Args:
@@ -296,24 +299,7 @@ def select_project_table_target(conn, project_id):
     
     return result
 
-def generate_project_obj(conn, project_name, tasks_table):
-    """
-    Generates a Project object with tasks.
-    Args:
-        project_name (str): The name of the project.
-        tasks_table (list): A list of task data, where each element represents a task.
-    Returns:
-        Project: An instance of the Project class with tasks added.
-    """
-    
-    project = Project(project_name)
-    for task_row in tasks_table:
-        task = generate_task_obj(conn, task_row)
-        project.add_task(task)
-    
-    return project
-
-def generate_project_obj_2(project_table, tasks_table, subtask_table):
+def generate_project_obj(project_table, tasks_table, subtask_table):
     project = Project(project_table[0], project_table[1])
     for task_row in tasks_table:
         task = generate_task_obj_2(task_row, subtask_table)
@@ -536,9 +522,9 @@ def add_subtask_to_db(conn, subtask):
 
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO Subtasks (task_id, description, status) 
-        VALUES (?, ?, ?);
-    """, (subtask.task_id, subtask.description, subtask.status))
+        INSERT INTO Subtasks (task_id, project_id, description, status) 
+        VALUES (?, ?, ?, ?);
+    """, (subtask.task_id, subtask.project_id, subtask.description, subtask.status))
     conn.commit()
     subtask.id = cursor.lastrowid
     return subtask.id

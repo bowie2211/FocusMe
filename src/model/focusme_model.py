@@ -89,9 +89,10 @@ class Task:
                 break
 
 class Subtask:
-    def __init__(self, id=None, task_id=None, description="", status=0):
+    def __init__(self, id=None, task_id=None, project_id = None, description="", status=0):
         self.id = id
         self.task_id = task_id
+        self.project_id = project_id
         self.description = description
         self.status = status
 

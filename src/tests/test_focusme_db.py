@@ -2,7 +2,7 @@ import unittest
 import sqlite3
 from model.focusme_model import Task, Subtask, Project, KanbanBoardColumns
 from model.focusme_db import initialize_database, add_project_to_db, add_task_to_db, add_subtask_to_db, get_table_schema, select_project_table, \
-                             generate_focusme_data_obj, select_project_table_target, generate_project_obj_2, select_task_table, select_subtask_table
+                             generate_focusme_data_obj, select_project_table, generate_project_obj, select_task_table, select_subtask_table
                              
 
 class TestFocusMeDB(unittest.TestCase):
@@ -35,51 +35,56 @@ class TestFocusMeDB(unittest.TestCase):
         add_project_to_db(conn, project)
         print("yepp")
     
-    def test_get_project_by_name(self):
-        conn=initialize_database() #in memory data base 
-        project = Project("P2")
-        prj_id=add_project_to_db(conn, project)
-        print(prj_id)
-        task1 = Task(
-        taskname="Neue Backlog-Task", 
-        description="Eine neue Aufgabe", 
-        estimated_pomodoros=3, 
-        performed_pomodoros=0, 
-        assigned_kanban_swimlane=KanbanBoardColumns.BACKLOG.value,
-        date_to_perform="2023-12-10", 
-        repeat="weekly", 
-        assigned_project="P2",
-        tag="Important")
-        add_task_to_db(conn, task=task1)
-        task2 = Task(
-        taskname="Neue in_progress-Task", 
-        description="Eine neue Aufgabe", 
-        estimated_pomodoros=3, 
-        performed_pomodoros=0, 
-        assigned_kanban_swimlane=KanbanBoardColumns.IN_PROGRESS.value,
-        date_to_perform="2023-12-10", 
-        repeat="weekly", 
-        assigned_project="P2",
-        tag="Important")
-        add_task_to_db(conn, task=task2)
-        task3 = Task(
-        taskname="Neue done-Task", 
-        description="Eine neue Aufgabe", 
-        estimated_pomodoros=3, 
-        performed_pomodoros=0, 
-        assigned_kanban_swimlane=KanbanBoardColumns.DONE.value,
-        date_to_perform="2023-12-10", 
-        repeat="weekly", 
-        assigned_project="P2",
-        tag="Important")
-        add_task_to_db(conn, task=task3)
-        project = select_project_table(conn, "P2")
-        self.assertEqual(project.tasks[KanbanBoardColumns.BACKLOG.value][0].taskname,task1.taskname)
-        self.assertEqual(project.tasks[KanbanBoardColumns.IN_PROGRESS.value][0].taskname,task2.taskname)
-        self.assertEqual(project.tasks[KanbanBoardColumns.DONE.value][0].taskname,task3.taskname)
+    # def test_get_project_by_name(self):
+    #     conn=initialize_database() #in memory data base 
+    #     project = Project("P2")
+    #     prj_id=add_project_to_db(conn, project)
+    #     print(prj_id)
+    #     task1 = Task(
+    #     taskname="Neue Backlog-Task", 
+    #     description="Eine neue Aufgabe", 
+    #     estimated_pomodoros=3, 
+    #     performed_pomodoros=0, 
+    #     assigned_kanban_swimlane=KanbanBoardColumns.BACKLOG.value,
+    #     date_to_perform="2023-12-10", 
+    #     repeat="weekly", 
+    #     assigned_project="P2",
+    #     tag="Important")
+    #     add_task_to_db(conn, task=task1)
+    #     task2 = Task(
+    #     taskname="Neue in_progress-Task", 
+    #     description="Eine neue Aufgabe", 
+    #     estimated_pomodoros=3, 
+    #     performed_pomodoros=0, 
+    #     assigned_kanban_swimlane=KanbanBoardColumns.IN_PROGRESS.value,
+    #     date_to_perform="2023-12-10", 
+    #     repeat="weekly", 
+    #     assigned_project="P2",
+    #     tag="Important")
+    #     add_task_to_db(conn, task=task2)
+    #     task3 = Task(
+    #     taskname="Neue done-Task", 
+    #     description="Eine neue Aufgabe", 
+    #     estimated_pomodoros=3, 
+    #     performed_pomodoros=0, 
+    #     assigned_kanban_swimlane=KanbanBoardColumns.DONE.value,
+    #     date_to_perform="2023-12-10", 
+    #     repeat="weekly", 
+    #     assigned_project="P2",
+    #     tag="Important")
+    #     add_task_to_db(conn, task=task3)
+    #     project = select_project_table(conn, "P2")
+        
+    #     project_table = select_project_table(conn, prj_id) 
+    #     tasks_table = select_task_table(conn, project_table[0]) #unpacking tuple
+    #     subtask_table   = select_subtask_table(conn, task1_id)
+    #     project = generate_project_obj(project_table, tasks_table, subtask_table)
+    #     self.assertEqual(project.tasks[KanbanBoardColumns.BACKLOG.value][0].taskname,task1.taskname)
+    #     self.assertEqual(project.tasks[KanbanBoardColumns.IN_PROGRESS.value][0].taskname,task2.taskname)
+    #     self.assertEqual(project.tasks[KanbanBoardColumns.DONE.value][0].taskname,task3.taskname)
   
   
-    def test_generate_project_obj_2(self):
+    def test_generate_project_obj(self):
         conn=initialize_database() #in memory data base 
         project = Project("P2")
         prj_id=add_project_to_db(conn, project)
@@ -102,12 +107,31 @@ class TestFocusMeDB(unittest.TestCase):
         add_subtask_to_db(conn, subtask2)
         add_subtask_to_db(conn, subtask3)
         
-        project_table = select_project_table_target(conn, prj_id) 
+        task2 = Task(
+        taskname="Neue Backlog-Task", 
+        description="Eine neue Aufgabe", 
+        estimated_pomodoros=3, 
+        performed_pomodoros=0, 
+        assigned_kanban_swimlane=KanbanBoardColumns.BACKLOG.value,
+        date_to_perform="2023-12-10", 
+        repeat="weekly", 
+        assigned_project="P2",
+        tag="Important")
+        task2_id=add_task_to_db(conn, task=task2) #important: has to be added to db before subtasks, as task.id is needed for subtask
+        subtask4 = Subtask(id=None, task_id=task2.id, description="Subtask1", status=0)
+        subtask5 = Subtask(id=None, task_id=task2.id, description="Subtask2", status=0)
+        subtask6 = Subtask(id=None, task_id=task2.id, description="Subtask3", status=0)
+        add_subtask_to_db(conn, subtask4)
+        add_subtask_to_db(conn, subtask5)
+        add_subtask_to_db(conn, subtask6)
+        
+        
+        project_table = select_project_table(conn, prj_id) 
         tasks_table = select_task_table(conn, project_table[0]) #unpacking tuple
         subtask_table   = select_subtask_table(conn, task1_id)
-        project = generate_project_obj_2(project_table, tasks_table, subtask_table)
-        assertEqual(project.tasks[KanbanBoardColumns.BACKLOG.value][0].subtasks[0].description, subtask1.description)
-        assertEqual(project.tasks[KanbanBoardColumns.BACKLOG.value][0].subtasks[1].description, subtask2.description)
+        project = generate_project_obj(project_table, tasks_table, subtask_table)
+        self.assertEqual(project.tasks[KanbanBoardColumns.BACKLOG.value][0].subtasks[0].description, subtask1.description)
+        self.assertEqual(project.tasks[KanbanBoardColumns.BACKLOG.value][0].subtasks[1].description, subtask2.description)
     
     
     def test_tasks_table_schema(self):
@@ -167,12 +191,12 @@ class TestFocusMeDB(unittest.TestCase):
         self.assertEqual(focusme_data.projects[0].tasks[KanbanBoardColumns.DONE.value][0].taskname,task3.taskname)
         
         
-    def test_select_project(self):
+    def test_select_project_table(self):
         conn=initialize_database() #in memory data base 
         project = Project("P2")
         prj_id=add_project_to_db(conn, project)
         print(prj_id)
-        proj_table = select_project_table_target(conn, prj_id)
+        proj_table = select_project_table(conn, prj_id)
         self.assertEqual(proj_table[0],project.name)
 
     def test_select_subtask_table(self):
@@ -182,8 +206,8 @@ class TestFocusMeDB(unittest.TestCase):
         print(prj_id)
         task=Task(1, "Task1", "Description", 3, 0, "2023-12-10", "weekly", "P2", "Important")
         task_id=add_task_to_db(conn, task)  
-        subtask1 = Subtask(task_id=task_id, description="test subtask1", status=0)
-        subtask2 = Subtask(task_id=task_id, description="test subtask2", status=0)
+        subtask1 = Subtask(task_id=task_id, project_id=prj_id, description="test subtask1", status=0)
+        subtask2 = Subtask(task_id=task_id, project_id=prj_id, description="test subtask2", status=0)
         subtask1_id=add_subtask_to_db(conn, subtask1)
         subtask2_id=add_subtask_to_db(conn, subtask2)
         subtask_table = select_subtask_table(conn, task_id)
